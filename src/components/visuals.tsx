@@ -23,8 +23,10 @@ export function Ball({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
+// Blason du club (public/logo.png, fond détouré)
+export const LOGO_URL = '/logo.png';
 export const Logo = ({ className = 'logo' }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 100 100" aria-hidden="true"><Ball cx={50} cy={50} r={47} /></svg>
+  <img className={className} src={LOGO_URL} alt="" aria-hidden="true" />
 );
 
 export const IconX = () => (
@@ -133,6 +135,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
           <div className="card-art">
             {url ? <img src={url} alt="" loading="lazy" /> : <CardArtSvg card={card} />}
             <span className="card-foil" aria-hidden="true" />
+            {r >= 5 && <span className="card-sparkle" aria-hidden="true" />}
           </div>
           {card.subtitle && <p className="card-sub">{card.subtitle}</p>}
           {stats.length > 0 ? (
@@ -151,6 +154,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
             <span>{pad2(card.number)}/{pad2(L.setCount.get(card.set_id))}</span>
           </div>
         </div>
+        {r >= 5 && <div className="card-holo" aria-hidden="true" />}
         <div className="card-glare" aria-hidden="true" />
       </div>
       {qty > 1 && <span className="qty">×{qty}</span>}
@@ -185,8 +189,7 @@ export function Pack({ setLabel, className = '', style }: { setLabel: string; cl
       <div className="pack-crimp" />
       <div className="pack-body">
         <div className="pack-bands" />
-        <div className="pack-club">{CONFIG.clubName}</div>
-        <svg className="pack-ball" viewBox="0 0 100 100"><Ball cx={50} cy={50} r={48} /></svg>
+        <img className="pack-logo" src={LOGO_URL} alt="" />
         <div className="pack-name">Booster</div>
         <div className="pack-set">{setLabel}</div>
       </div>

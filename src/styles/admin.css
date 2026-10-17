@@ -104,7 +104,7 @@ input[type=range] { accent-color: var(--club); width: 100%; }
 /* Affiche */
 .poster { display: grid; justify-items: center; gap: 10px; padding: 10px 0; text-align: center; }
 .poster-brand { display: flex; align-items: center; gap: 10px; font: 800 26px/1 var(--font-c); letter-spacing: .06em; }
-.poster-brand .logo { width: 40px; height: 40px; }
+.poster-brand .logo { height: 52px; }
 .poster-title { margin: 4px 0 0; font: 800 34px/1 var(--font-c); }
 .poster-qr { width: min(320px, 70vw); padding: 10px; border-radius: 12px; background: #fff; }
 .poster-qr svg { display: block; width: 100%; height: auto; }

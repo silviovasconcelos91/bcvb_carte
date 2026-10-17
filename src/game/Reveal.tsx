@@ -8,17 +8,42 @@ import { useGame } from './context';
 import { boosterSetLabel } from './BoosterView';
 
 type Phase = 'pack' | 'deck' | 'recap';
+type PackStep = '' | 'drop' | 'charge' | 'torn';
+interface Fx { r: number; key: number; x: number; y: number }
+
+// Ouverture du paquet : il tombe, tremble de plus en plus fort, puis se déchire dans un flash
+const PACK_STEPS: [PackStep, number][] = [['drop', 550], ['charge', 1050], ['torn', 800]];
+// Suspense avant de retourner une carte très rare (la carte tremble et s'illumine)
+const SUSPENSE: Record<number, number> = { 5: 500, 6: 1100 };
+
+const sparkColors = (r: number) => (r >= 6 ? ['#FF4DA6', '#FFD600', '#00E0FF', '#8660FF', '#3DFF9E'] : r === 5 ? ['#FFD34E', '#FFF4C2', '#F2B01E'] : ['#B79CFF', '#E3D7FF', '#8B5CF6']);
 
 function burst(el: HTMLElement, r: number) {
-  const colors = r >= 6 ? ['#FF4DA6', '#FFD600', '#00E0FF', '#8660FF'] : r === 5 ? ['#FFD34E', '#FFF4C2', '#F2B01E'] : ['#B79CFF', '#E3D7FF', '#8B5CF6'];
-  for (let i = 0; i < 18; i++) {
+  const colors = sparkColors(r);
+  const count = r >= 6 ? 40 : r === 5 ? 28 : 18;
+  const reach = r >= 6 ? 150 : r === 5 ? 120 : 70;
+  for (let i = 0; i < count; i++) {
     const s = document.createElement('span');
-    const a = (Math.PI * 2 * i) / 18 + Math.random() * 0.3;
-    const dist = 70 + Math.random() * 70;
+    const a = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+    const dist = reach + Math.random() * reach;
     s.className = 'spark';
     s.style.cssText = `--dx:${(Math.cos(a) * dist).toFixed(0)}px;--dy:${(Math.sin(a) * dist).toFixed(0)}px;background:${colors[i % colors.length]}`;
     el.appendChild(s);
     setTimeout(() => s.remove(), 900);
+  }
+}
+
+// Pluie de pièces d'or (légendaire) ou de confettis (secrète) sur tout l'écran
+function rain(el: HTMLElement, r: number) {
+  const colors = sparkColors(r);
+  const count = r >= 6 ? 80 : 40;
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement('span');
+    const dur = 1.8 + Math.random() * 1.4;
+    s.className = r >= 6 ? 'confetti' : 'confetti coin';
+    s.style.cssText = `left:${(Math.random() * 100).toFixed(1)}%;--x:${(Math.random() * 120 - 60).toFixed(0)}px;--rot:${(Math.random() * 900 - 450).toFixed(0)}deg;animation-duration:${dur.toFixed(2)}s;animation-delay:${(Math.random() * 0.7).toFixed(2)}s;background:${colors[i % colors.length]}`;
+    el.appendChild(s);
+    setTimeout(() => s.remove(), (dur + 0.8) * 1000);
   }
 }
 
@@ -28,7 +53,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   const { d } = useGame();
   const L = useLookup();
   const [phase, setPhase] = useState<Phase>('pack');
-  const [packClass, setPackClass] = useState('');
+  const [step, setStep] = useState<PackStep>('');
+  const [fx, setFx] = useState<Fx | null>(null);
+  const [charging, setCharging] = useState(false);
   const [cur, setCur] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [leaving, setLeaving] = useState<number | null>(null);
@@ -37,6 +64,8 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   const swipe = useRef<{ x: number; at: number } | null>(null);
   const lastSwipe = useRef(0);
   const topRef = useRef<HTMLDivElement>(null);
+  const deckRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
 
@@ -50,14 +79,19 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   });
   const n = items.length;
   const fresh = drawn.filter(x => x.is_new).length;
+  // Le halo du paquet prend la couleur de la meilleure carte (à partir d'ultra rare)
+  const best = Math.max(1, ...items.map(x => x.card.rarity_id ?? 1));
 
   useEffect(() => {
     document.body.classList.add('no-scroll');
     let alive = true;
     (async () => {
       if (!reduceMotion()) {
-        setPackClass('shake'); await sleep(620);
-        setPackClass('shake torn'); await sleep(700);
+        for (const [s, ms] of PACK_STEPS) {
+          if (!alive) return;
+          setStep(s);
+          await sleep(ms);
+        }
       }
       if (alive) setPhase('deck');
     })();
@@ -70,13 +104,30 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   async function advance(dir: -1 | 1 = -1) {
     if (lock.current || phase !== 'deck') return;
     if (!flipped) {
-      setFlipped(true);
       const r = items[cur].card.rarity_id ?? 1;
-      if (r >= 4 && !reduceMotion() && topRef.current) burst(topRef.current, r);
+      const show = r >= 4 && !reduceMotion();
+      if (show && SUSPENSE[r]) {
+        lock.current = true;
+        setCharging(true);
+        await sleep(SUSPENSE[r]);
+        setCharging(false);
+        lock.current = false;
+      }
+      setFlipped(true);
+      if (show) {
+        const b = deckRef.current?.getBoundingClientRect();
+        if (b) setFx({ r, key: Date.now(), x: b.left + b.width / 2, y: b.top + b.height / 2 });
+        // Les éclats partent quand la carte est à moitié retournée
+        setTimeout(() => {
+          if (topRef.current) burst(topRef.current, r);
+          if (r >= 5 && rootRef.current) rain(rootRef.current, r);
+        }, 280);
+      }
       return;
     }
     lock.current = true;
     setLeaving(dir);
+    setFx(null);
     await sleep(reduceMotion() ? 0 : 340);
     setLeaving(null);
     setFlipped(false);
@@ -97,12 +148,28 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   const nextLabel = !flipped ? 'Retourner la carte' : cur === n - 1 ? 'Voir le récapitulatif' : 'Carte suivante';
 
   return createPortal(
-    <div className="reveal" role="dialog" aria-modal="true" aria-label="Ouverture du booster">
-      <div className="reveal-stage">
-        {phase === 'pack' && <div className="reveal-pack"><Pack setLabel={boosterSetLabel(d)} className={packClass} /></div>}
+    <div className="reveal" ref={rootRef} role="dialog" aria-modal="true" aria-label="Ouverture du booster">
+      {phase === 'pack' && step === 'torn' && <div className={`reveal-flash pack-flash fx-r${best}`} aria-hidden="true" />}
+      {fx && (
+        <div key={fx.key} className={`reveal-fx fx-r${fx.r}`} style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true">
+          {fx.r >= 5 && <span className="fx-rays" />}
+          <span className="fx-shock" />
+          {fx.r >= 6 && <span className="fx-shock late" />}
+          <span className="reveal-flash" />
+        </div>
+      )}
+      <div className={`reveal-stage${fx && fx.r >= 5 ? ` quake-r${fx.r}` : ''}`}>
+        {phase === 'pack' && (
+          <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0}`}>
+            <span className="pack-rays" aria-hidden="true" />
+            <span className="pack-aura" aria-hidden="true" />
+            <Pack setLabel={boosterSetLabel(d)} />
+            <span className="pack-beam" aria-hidden="true" />
+          </div>
+        )}
         {phase === 'deck' && (
           <>
-            <div className="deck" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+            <div className="deck" ref={deckRef} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
               {items.map(({ it, card }, i) => {
                 const depth = i - cur;
                 if (depth < 0) return null;
@@ -111,7 +178,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
                   ...(top && leaving ? { '--out': leaving < 0 ? '-140%' : '140%', '--outr': leaving < 0 ? '-16deg' : '16deg' } : {}),
                   ...(top && drag != null ? { '--dx': `${drag}px`, '--dr': `${(drag / 18).toFixed(1)}deg` } : {}),
                 } as CSSProperties;
-                const cls = ['flip', `r${card.rarity_id ?? 1}`, top && 'is-top', depth > 3 && 'is-deep', top && flipped && 'is-flipped', top && leaving && 'leaving', top && drag != null && 'dragging'].filter(Boolean).join(' ');
+                const cls = ['flip', `r${card.rarity_id ?? 1}`, top && 'is-top', depth > 3 && 'is-deep', top && flipped && 'is-flipped', top && leaving && 'leaving', top && drag != null && 'dragging', top && charging && 'charging'].filter(Boolean).join(' ');
                 return (
                   <div key={i} ref={top ? topRef : undefined} className={cls} style={style}
                     {...(top ? {
@@ -126,6 +193,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
                   </div>
                 );
               })}
+              {fx && <span key={fx.key} className={`rare-banner r${fx.r}`}>{rarityLabel(L, fx.r)}</span>}
             </div>
             <div className="deck-ui">
               <p className="deck-count" aria-live="polite">Carte {cur + 1} sur {n}</p>

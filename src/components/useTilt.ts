@@ -16,6 +16,7 @@ export function useTilt(enabled: boolean) {
         el.style.setProperty('--my', `${(y * 100).toFixed(1)}%`);
         el.style.setProperty('--px', `${(x * 100).toFixed(1)}%`);
         el.style.setProperty('--py', `${(y * 100).toFixed(1)}%`);
+        el.style.setProperty('--hx', x.toFixed(3));
         el.style.setProperty('--rx', `${((0.5 - y) * 16).toFixed(2)}deg`);
         el.style.setProperty('--ry', `${((x - 0.5) * 20).toFixed(2)}deg`);
         el.classList.add('is-active');
