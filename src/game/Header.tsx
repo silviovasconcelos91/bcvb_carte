@@ -5,7 +5,7 @@ import { useGame, type Tab } from './context';
 
 const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collection'], ['trades', 'Échanges']];
 
-export function Header({ onLogout, onSwitch }: { onLogout: () => void; onSwitch: (uid: string) => void }) {
+export function Header({ onLogout, onSwitch, onAccount }: { onLogout: () => void; onSwitch: (uid: string) => void; onAccount: () => void }) {
   const { api, d, uid, tab, setTab } = useGame();
   const received = d.trades.filter(t => t.status === 'pending' && t.recipient_id === uid).length;
   return (
@@ -22,7 +22,7 @@ export function Header({ onLogout, onSwitch }: { onLogout: () => void; onSwitch:
             </span>
           ) : (
             <>
-              <span className="who-name">{d.me.username}</span>
+              <button className="who-btn" onClick={onAccount} title="Mon compte">{d.me.username}</button>
               <button className="btn small ghost" onClick={onLogout}>Se déconnecter</button>
             </>
           )}

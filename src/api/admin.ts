@@ -1,6 +1,7 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardSet, Opening, Profile, Rarity, Settings, UserCard } from '../lib/types';
-import { fetchAll, getSupabase, must, sendLoginLink, signOut, signedUrls, watchSession } from '../lib/supabase';
+import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, UserCard } from '../lib/types';
+import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
+import { signIn } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
 import { slug } from '../lib/format';
 
@@ -14,6 +15,7 @@ export interface AdminData {
   codes: BoosterCode[];
   admins: string[];
   recent: Opening[];
+  signupCode: string | null; // code du club : un compte créé avec lui est actif tout de suite
   stats: { nOpen: number; nOpenWeek: number; nAccepted: number; nPending: number };
 }
 
@@ -34,7 +36,7 @@ export type CodeInput = Partial<Omit<BoosterCode, 'uses_count' | 'created_at'>>;
 export interface AdminApi {
   mode: 'supabase' | 'demo';
   init(onChange: (uid: string | null) => void): Promise<string | null>;
-  sendLoginLink(email: string): Promise<void>;
+  signIn(identifiant: string, password: string): Promise<void>;
   logout(): Promise<void>;
   isAdmin(): Promise<boolean>;
   load(): Promise<AdminData>;
@@ -47,6 +49,8 @@ export interface AdminApi {
   saveCode(code: CodeInput): Promise<void>;
   deleteCode(id: number): Promise<void>;
   resetFreeBooster(uid: string): Promise<void>;
+  setMemberStatus(uid: string, status: MemberStatus): Promise<void>;
+  saveSignupCode(code: string | null): Promise<void>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
   reset?(): Promise<void>;
 }
@@ -56,6 +60,7 @@ export function friendly(msg: string): string {
   if (/cards_set_id_number_key/.test(msg)) return 'Ce numéro est déjà pris dans cette série.';
   if (/card_sets_name_key/.test(msg)) return 'Une série porte déjà ce nom.';
   if (/booster_codes_code_idx/.test(msg)) return 'Ce code existe déjà.';
+  if (/signup_settings_code_check/.test(msg)) return "Le code d'inscription doit faire entre 4 et 40 caractères.";
   if (/delete on table "card_sets"/.test(msg)) return 'Cette série contient encore des cartes.';
   if (/delete on table "cards"/.test(msg)) return 'Cette carte est déjà dans des collections ou des échanges : retire-la plutôt des boosters.';
   if (/row-level security|JSON object requested|Réservé/i.test(msg)) return 'Action réservée aux administrateurs.';
@@ -74,29 +79,30 @@ function createSupabaseAdminApi(): AdminApi {
   return {
     mode: 'supabase',
     init: watchSession,
-    sendLoginLink,
+    signIn,
     logout: signOut,
     isAdmin: async () => ok<boolean>(await sb.rpc('is_admin')) === true,
     async load() {
       const week = new Date(Date.now() - 7 * 864e5).toISOString();
       const openings = () => sb.from('booster_openings').select('id', { count: 'exact', head: true });
       const trades = () => sb.from('trades').select('id', { count: 'exact', head: true });
-      const [settings, rarities, sets, cards, profiles, userCards, codes, admins, recent, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
+      const [settings, rarities, sets, cards, profiles, userCards, codes, admins, recent, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => ok<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => ok<Rarity[]>(r)),
         sb.from('card_sets').select('*').order('id').then(r => ok<CardSet[]>(r)),
         fetchAll<Card>(() => sb.from('cards').select('*').order('set_id').order('number')),
-        fetchAll<Profile>(() => sb.from('profiles').select('id, username, last_free_booster_at, created_at').order('username')),
+        fetchAll<Profile>(() => sb.from('profiles').select('id, username, status, last_free_booster_at, created_at').order('username')),
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
         fetchAll<BoosterCode>(() => sb.from('booster_codes').select('*').order('created_at', { ascending: false })),
         sb.from('admins').select('user_id').then(r => ok<{ user_id: string }[]>(r)),
         sb.from('booster_openings').select('id, user_id, code_id, card_ids, opened_at').order('opened_at', { ascending: false }).limit(12).then(r => ok<Opening[]>(r)),
+        sb.from('signup_settings').select('code').single().then(r => ok<{ code: string | null }>(r)),
         openings().then(count),
         openings().gte('opened_at', week).then(count),
         trades().eq('status', 'accepted').then(count),
         trades().eq('status', 'pending').then(count),
       ]);
-      return { settings, rarities, sets, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
+      return { settings, rarities, sets, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
     },
     // La photo et sa vignette éventuelles sont envoyées d'abord, les anciennes supprimées une fois la carte enregistrée
     async saveCard(card, photo, old) {
@@ -141,6 +147,8 @@ function createSupabaseAdminApi(): AdminApi {
     },
     deleteCode: async id => { ok(await sb.from('booster_codes').delete().eq('id', id)); },
     resetFreeBooster: async uid => { ok(await sb.rpc('admin_reset_free_booster', { p_user: uid })); },
+    setMemberStatus: async (uid, status) => { ok(await sb.rpc('admin_set_member_status', { p_user: uid, p_status: status })); },
+    saveSignupCode: async code => { ok(await sb.from('signup_settings').update({ code }).eq('id', true).select().single()); },
     imageUrls: signedUrls,
   };
 }
@@ -158,6 +166,7 @@ interface DemoDb {
   codes: BoosterCode[];
   images: Record<string, string>;
   admins: string[];
+  signupCode: string | null;
   nextId: number;
   accepted: number;
   pending: number;
@@ -165,6 +174,7 @@ interface DemoDb {
 
 function createDemoAdminApi(): AdminApi {
   const KEY = 'cartes-club-admin-demo-react-v1';
+  const VERSION = 2; // 2 : statut des membres et code d'inscription
   const fail = (msg: string): never => { throw new Error(msg); };
   let db: DemoDb;
   const save = () => writeStore(KEY, db);
@@ -177,12 +187,17 @@ function createDemoAdminApi(): AdminApi {
   const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
   function seed() {
     db = {
-      version: 1, settings: { booster_size: 5, free_booster_cooldown: '1 day' },
+      version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day' },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
-      profiles: [{ id: 'demo-admin', username: 'Toi' }, ...DEMO_MEMBERS].map((p, i) => ({
-        ...p, last_free_booster_at: i % 2 ? new Date(Date.now() - (i + 2) * 36e5).toISOString() : null, created_at: ago(30 - i),
-      })),
-      owned: {}, openings: [], images: {}, admins: ['demo-admin'], nextId: 100, accepted: 7, pending: 3,
+      profiles: [
+        ...[{ id: 'demo-admin', username: 'Toi' }, ...DEMO_MEMBERS].map((p, i): Profile => ({
+          ...p, status: 'active', last_free_booster_at: i % 2 ? new Date(Date.now() - (i + 2) * 36e5).toISOString() : null, created_at: ago(30 - i),
+        })),
+        // Inscrits sans le code du club : en attente de validation
+        { id: 'demo-pending-1', username: 'Jules', status: 'pending', last_free_booster_at: null, created_at: ago(0.1) },
+        { id: 'demo-pending-2', username: 'Manon R.', status: 'pending', last_free_booster_at: null, created_at: ago(1.5) },
+      ],
+      owned: {}, openings: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
       codes: [
         { id: 1, code: 'MATCH-14NOV', label: 'Match à domicile du 14/11', set_id: null, max_uses: null, uses_count: 18, expires_at: ago(-5), created_at: ago(2) },
         { id: 2, code: 'NOEL26', label: 'Tournoi de Noël', set_id: 2, max_uses: 60, uses_count: 41, expires_at: null, created_at: ago(1) },
@@ -191,7 +206,7 @@ function createDemoAdminApi(): AdminApi {
     };
     db.cards.push({ id: db.nextId++, set_id: 1, number: 20, name: 'Nouvelle recrue', subtitle: 'Centrale', rarity_id: 2, stats: { numero: 14, bloc: 8, attaque: 7, service: 5 }, description: null, image_path: null, thumb_path: null, is_released: false, in_boosters: true });
     let id = 1;
-    for (const p of db.profiles) {
+    for (const p of db.profiles.filter(x => x.status === 'active')) {
       const n = 2 + Math.floor(Math.random() * 6);
       for (let k = 0; k < n; k++) {
         const cards = Array.from({ length: 5 }, () => demoDraw(db.cards, db.sets, db.rarities, null).id);
@@ -202,13 +217,13 @@ function createDemoAdminApi(): AdminApi {
     save();
   }
   const stored = readStore<DemoDb>(KEY);
-  if (stored?.version === 1) db = stored; else seed();
+  if (stored?.version === VERSION) db = stored; else seed();
   const used = (cid: number) => Object.values(db.owned).some(o => o[cid]);
 
   return {
     mode: 'demo',
     async init() { return 'demo-admin'; },
-    async sendLoginLink() {},
+    async signIn() {},
     async logout() {},
     async isAdmin() { return true; },
     async load() {
@@ -219,6 +234,7 @@ function createDemoAdminApi(): AdminApi {
         settings: db.settings, rarities: db.rarities, sets: db.sets, cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
         codes: [...db.codes].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         recent: [...db.openings].sort((a, b) => b.opened_at.localeCompare(a.opened_at)).slice(0, 12),
+        signupCode: db.signupCode,
         stats: { nOpen: db.openings.length, nOpenWeek: db.openings.filter(o => Date.parse(o.opened_at) > week).length, nAccepted: db.accepted, nPending: db.pending },
       });
     },
@@ -267,6 +283,17 @@ function createDemoAdminApi(): AdminApi {
     },
     async deleteCode(id) { db.codes = db.codes.filter(c => c.id !== id); save(); },
     async resetFreeBooster(uid) { const p = db.profiles.find(x => x.id === uid); if (p) p.last_free_booster_at = null; save(); },
+    async setMemberStatus(uid, status) {
+      if (uid === 'demo-admin' && status === 'pending') fail('Tu ne peux pas suspendre ton propre compte');
+      const p = db.profiles.find(x => x.id === uid) ?? fail('Membre introuvable');
+      p.status = status;
+      save();
+    },
+    async saveSignupCode(code) {
+      if (code != null && (code.trim().length < 4 || code.trim().length > 40)) fail("Le code d'inscription doit faire entre 4 et 40 caractères.");
+      db.signupCode = code;
+      save();
+    },
     async imageUrls(paths) { return Object.fromEntries(paths.filter(p => db.images[p]).map(p => [p, db.images[p]])); },
     async reset() { try { localStorage.removeItem(KEY); } catch { /* rien à effacer */ } seed(); },
   };

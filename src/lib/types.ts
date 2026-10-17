@@ -39,9 +39,12 @@ export interface CatalogRow {
   owned: boolean;
 }
 
+export type MemberStatus = 'active' | 'pending';
+
 export interface Profile {
   id: string;
   username: string;
+  status: MemberStatus; // 'pending' : compte en attente de validation, sans accès au jeu
   last_free_booster_at: string | null;
   created_at?: string;
 }

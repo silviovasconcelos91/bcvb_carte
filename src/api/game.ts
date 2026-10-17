@@ -1,6 +1,7 @@
 import { DEMO } from '../config';
 import type { Card, CardRef, CardSet, CatalogRow, DrawnCard, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
-import { fetchAll, getSupabase, must, sendLoginLink, signOut, signedUrls, watchSession } from '../lib/supabase';
+import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
+import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
 import { fmtDate, intervalMs } from '../lib/format';
 
@@ -17,8 +18,14 @@ export interface GameData {
 export interface GameApi {
   mode: 'supabase' | 'demo';
   init(onChange: (uid: string | null) => void): Promise<string | null>;
-  sendLoginLink(email: string): Promise<void>;
+  signIn(identifiant: string, password: string): Promise<void>;
+  signUp(pseudo: string, password: string, code: string): Promise<void>;
   logout(): Promise<void>;
+  // Profil du compte connecté, lu seul : un compte en attente ne voit rien d'autre
+  myProfile(uid: string): Promise<Profile | null>;
+  loginId(): Promise<string>;
+  rename(uid: string, username: string): Promise<void>;
+  changePassword(password: string, confirm: string): Promise<void>;
   load(): Promise<GameData>;
   openBooster(code: string | null): Promise<DrawnCard[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
@@ -46,6 +53,9 @@ export function mergeCatalog(catalog: CatalogRow[], known: Card[]): Card[] {
   });
 }
 
+const PROFILE_COLS = 'id, username, status, last_free_booster_at';
+const renameError = (m: string) => (/check constraint|violates/i.test(m) ? 'Le pseudo doit faire entre 2 et 30 caractères.' : m);
+
 /* ------------------------------ Supabase ------------------------------ */
 function createSupabaseGameApi(): GameApi {
   const sb = getSupabase();
@@ -53,8 +63,13 @@ function createSupabaseGameApi(): GameApi {
   return {
     mode: 'supabase',
     init: watchSession,
-    sendLoginLink,
+    signIn,
+    signUp,
     logout: signOut,
+    myProfile: async uid => must<Profile | null>(await sb.from('profiles').select(PROFILE_COLS).eq('id', uid).maybeSingle()),
+    loginId: currentLoginId,
+    rename: async (uid, username) => { must(await sb.from('profiles').update({ username }).eq('id', uid).select('id').single(), renameError); },
+    changePassword,
     async load() {
       const [settings, rarities, sets, catalog, known, profiles, userCards, trades] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => must<Settings>(r)),
@@ -62,7 +77,7 @@ function createSupabaseGameApi(): GameApi {
         sb.from('card_sets').select('*').order('id').then(r => must<CardSet[]>(r)),
         fetchAll<CatalogRow>(() => sb.rpc('card_catalog')),
         fetchAll<Card>(() => sb.rpc('my_cards')), // seules les cartes possédées, même pour un administrateur
-        fetchAll<Profile>(() => sb.from('profiles').select('id, username, last_free_booster_at').order('username')),
+        fetchAll<Profile>(() => sb.from('profiles').select(PROFILE_COLS).order('username')),
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
         fetchAll<Trade>(() => sb.from('trades').select('*, trade_items(side, card_id, quantity)').order('created_at', { ascending: false }).order('id')),
       ]);
@@ -121,7 +136,7 @@ function createDemoGameApi(): GameApi {
     db = {
       version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day' },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
-      profiles: DEMO_MEMBERS.map(m => ({ ...m, last_free_booster_at: null })),
+      profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
       owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1,
       codes: [
         { id: 1, code: 'MATCH-14NOV', set_id: null, max_uses: null, uses_count: 0, expires_at: null },
@@ -146,13 +161,21 @@ function createDemoGameApi(): GameApi {
     save();
   }
   const stored = readStore<DemoDb>(KEY);
-  if (stored?.version === 1) db = stored; else seed();
+  if (stored?.version === 1) {
+    db = stored;
+    for (const p of db.profiles) p.status ??= 'active'; // démo enregistrée avant les statuts
+  } else seed();
 
   return {
     mode: 'demo',
     async init() { return db.current; },
-    async sendLoginLink() {},
+    async signIn() { fail('Mode démo : choisis un membre fictif.'); },
+    async signUp() { fail('Mode démo : la création de compte fonctionne avec Supabase.'); },
     async logout() { db.current = null; save(); },
+    async myProfile(uid) { return clone(profile(uid) ?? null); },
+    async loginId() { return ''; },
+    async rename(uid, username) { const p = profile(uid) ?? fail('Profil introuvable'); p.username = username; save(); },
+    async changePassword() { fail('Mode démo : pas de mot de passe.'); },
     async load() {
       const me = db.current ?? '';
       const userCards: UserCard[] = [];

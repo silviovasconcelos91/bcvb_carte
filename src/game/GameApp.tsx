@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createGameApi, type GameApi } from '../api/game';
 import { CONFIG } from '../config';
 import { LookupContext, artPaths } from '../lib/lookup';
-import type { DrawnCard } from '../lib/types';
+import type { DrawnCard, Profile } from '../lib/types';
+import { Logo } from '../components/visuals';
 import { useToast } from '../components/Toasts';
 import { GameContext, indexGame, type GameCtx, type GameIndex, type Tab } from './context';
 import { Login } from './Login';
@@ -13,6 +14,7 @@ import { TradesView } from './TradesView';
 import { CardDetail } from './CardDetail';
 import { Composer, type ComposerOpts } from './Composer';
 import { Reveal } from './Reveal';
+import { Account } from './Account';
 
 let apiSingleton: GameApi | null = null;
 const getApi = () => (apiSingleton ??= createGameApi());
@@ -38,6 +40,8 @@ export default function GameApp() {
   const [uid, setUid] = useState<string | null>(null);
   const [d, setD] = useState<GameIndex | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [pending, setPending] = useState<Profile | null>(null); // compte en attente de validation
+  const [account, setAccount] = useState(false);
   const [tab, setTabState] = useState<Tab>('booster');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [composer, setComposer] = useState<ComposerOpts | null>(null);
@@ -46,16 +50,27 @@ export default function GameApp() {
 
   useEffect(() => { document.title = `Cartes du ${CONFIG.clubName}`; }, []);
 
-  const load = useCallback(async (who: string) => {
+  // Le profil est lu d'abord : un compte en attente ne voit ni le catalogue ni les autres membres
+  const load = useCallback(async (who: string): Promise<boolean> => {
     try {
+      const me = await api.myProfile(who);
+      if (me?.status === 'pending') {
+        setPending(me);
+        setD(null);
+        setLoadError(null);
+        return false;
+      }
+      setPending(null);
       const raw = await api.load();
       const paths = artPaths(raw.cards);
       const urls = paths.length ? await api.imageUrls(paths) : {};
       setD(indexGame(raw, who, urls));
       setLoadError(null);
+      return true;
     } catch (e) {
       setD(null);
       setLoadError(e instanceof Error ? e.message : String(e));
+      return false;
     }
   }, [api]);
 
@@ -64,7 +79,7 @@ export default function GameApp() {
     api.init(next => {
       if (!alive) return;
       setUid(next);
-      if (next) void load(next); else setD(null);
+      if (next) void load(next); else { setD(null); setPending(null); }
     }).then(async who => {
       if (!alive) return;
       setUid(who);
@@ -89,16 +104,18 @@ export default function GameApp() {
     await load(who);
   };
   const logout = async () => {
+    setAccount(false);
     await api.logout();
     setUid(null);
     setD(null);
+    setPending(null);
     setLoadError(null);
   };
 
   const ctx = useMemo<GameCtx | null>(() => (uid && d ? {
     api, uid, d, tab,
     setTab: (t: Tab) => { setTabState(t); window.scrollTo(0, 0); },
-    refresh: () => load(uid),
+    refresh: async () => { await load(uid); },
     openCard: (id: number) => setDetailId(id),
     openComposer: (opts = {}) => setComposer(opts),
     showReveal: (cards: DrawnCard[]) => setDrawn(cards),
@@ -107,6 +124,20 @@ export default function GameApp() {
 
   if (booting) return <div className="loading">Chargement…</div>;
   if (!uid) return <Login api={api} onLogin={loginAs} />;
+  if (pending) {
+    return (
+      <main className="login one"><div className="login-panel">
+        <div className="login-brand"><Logo /><span>{CONFIG.clubName}</span></div>
+        <h1 className="login-title">Presque prêt</h1>
+        <p className="login-lead">Ton compte attend la validation d'un responsable du club.</p>
+        <p>Compte créé : <strong>{pending.username}</strong>. Reviens un peu plus tard, ou préviens un responsable du club.</p>
+        <div className="login-actions">
+          <button className="btn primary" onClick={async () => { if (!(await load(uid))) toast('Ton compte est toujours en attente de validation.'); }}>Actualiser</button>
+          <button className="btn ghost" onClick={() => void logout()}>Se déconnecter</button>
+        </div>
+      </div></main>
+    );
+  }
   if (loadError) {
     return (
       <main className="main"><div className="empty">
@@ -121,7 +152,7 @@ export default function GameApp() {
   return (
     <LookupContext.Provider value={ctx.d.lookup}>
       <GameContext.Provider value={ctx}>
-        <Header onLogout={logout} onSwitch={async who => { await loginAs(who); toast(`Tu joues maintenant avec le profil de ${ctx.d.profileById.get(who)?.username ?? ''}`); }} />
+        <Header onLogout={logout} onAccount={() => setAccount(true)} onSwitch={async who => { await loginAs(who); toast(`Tu joues maintenant avec le profil de ${ctx.d.profileById.get(who)?.username ?? ''}`); }} />
         {api.mode === 'demo' && <DemoStrip onReset={async () => { await api.demo?.reset(); setUid(null); setD(null); toast('Démo réinitialisée'); }} />}
         <main className="main" id="main">
           {tab === 'booster' && <BoosterView />}
@@ -130,6 +161,7 @@ export default function GameApp() {
         </main>
         {detailId != null && <CardDetail id={detailId} onClose={() => setDetailId(null)} />}
         {composer && <Composer opts={composer} onClose={() => setComposer(null)} />}
+        {account && <Account onClose={() => setAccount(false)} onLogout={() => void logout()} />}
         {drawn && <Reveal drawn={drawn} onClose={goCollection => { setDrawn(null); if (goCollection) ctx.setTab('collection'); }} />}
       </GameContext.Provider>
     </LookupContext.Provider>

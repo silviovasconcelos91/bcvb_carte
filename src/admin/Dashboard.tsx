@@ -9,9 +9,10 @@ export function Dashboard() {
   const st = d.stats;
   const released = d.cards.filter(c => c.is_released);
   const drafts = d.cards.length - released.length;
+  const waiting = d.profiles.filter(p => p.status === 'pending').length;
   const active = d.codes.filter(c => codeStatus(c) === 'active').length;
   const figures: [number, string, string][] = [
-    [d.profiles.length, 'membres', ''],
+    [d.profiles.length, 'membres', waiting ? `dont ${waiting} en attente` : ''],
     [released.length, 'cartes publiées', drafts ? `${drafts} en préparation` : 'aucune en préparation'],
     [st.nOpen, 'boosters ouverts', `${st.nOpenWeek} ces 7 derniers jours`],
     [st.nAccepted, 'échanges acceptés', `${st.nPending} en attente`],
@@ -19,6 +20,7 @@ export function Dashboard() {
   ];
   // Points à vérifier
   const checks: ['err' | 'info', string, AdminTab][] = [];
+  if (waiting) checks.push(['info', `${plural(waiting, 'compte en attente', 'comptes en attente')} de validation.`, 'members']);
   const pool = boosterPool(d);
   if (!d.sets.some(s => s.in_boosters)) checks.push(['err', "Aucune série n'est dans les boosters standards : l'ouverture des boosters gratuits échouera.", 'sets']);
   else if (!pool.length) checks.push(['err', 'Aucune carte ne peut tomber dans un booster standard : publie des cartes dans une série active.', 'cards']);

@@ -9,7 +9,15 @@ export const CONFIG = {
   clubShort: env.VITE_CLUB_SHORT?.trim() || 'BCVB',
   // Adresse du jeu imprimée dans les QR codes ; vide = adresse du site courant
   appUrl: env.VITE_APP_URL?.trim() ?? '',
+  // Domaine des adresses internes des comptes (pseudo « Léa Martin » -> cartes-lea.martin@<domaine>).
+  // Aucun e-mail n'y est envoyé, mais Supabase exige un vrai domaine avec des enregistrements MX.
+  loginDomain: env.VITE_LOGIN_EMAIL_DOMAIN?.trim().replace(/^@/, '').toLowerCase() ?? '',
   bucket: 'card-images',
 };
 
 export const DEMO = !(CONFIG.supabaseUrl && CONFIG.supabaseKey);
+
+// Réglage manquant qui empêche de se connecter en mode Supabase
+export const CONFIG_ERROR = !DEMO && !CONFIG.loginDomain
+  ? 'La variable VITE_LOGIN_EMAIL_DOMAIN est vide. Renseigne le domaine des comptes (par exemple bcvb.fr) dans .env.local ou dans les réglages Vercel, puis relance le build.'
+  : null;

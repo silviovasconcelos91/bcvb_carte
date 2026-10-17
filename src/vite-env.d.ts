@@ -6,6 +6,7 @@ interface ImportMetaEnv {
   readonly VITE_CLUB_NAME?: string;
   readonly VITE_CLUB_SHORT?: string;
   readonly VITE_APP_URL?: string;
+  readonly VITE_LOGIN_EMAIL_DOMAIN?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

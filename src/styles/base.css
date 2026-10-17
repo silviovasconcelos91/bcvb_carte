@@ -381,6 +381,17 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .login-form { display: grid; gap: 10px; }
 .login-form label { font-weight: 600; }
 .login-note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+.login.one { grid-template-columns: minmax(0, 460px); justify-content: center; }
+.login-seg { margin-bottom: 18px; }
+.login-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.form-help { margin: -4px 0 4px; color: var(--muted); font-size: 14px; }
+.form-error { margin: 0; padding: 12px 14px; border-radius: 10px; background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); font-weight: 600; }
+.who-btn { appearance: none; padding: 4px 2px; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; cursor: pointer; }
+.account { display: grid; gap: 10px; }
+.account + .account { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.account h3 { margin: 0; font: 700 18px/1.2 var(--font-c); }
+.account label { font-weight: 600; }
+.account .row { display: flex; gap: 8px; }
 .members { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 
 /* ---------- Notifications ---------- */

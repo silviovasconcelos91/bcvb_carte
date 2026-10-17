@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createAdminApi, type AdminApi } from '../api/admin';
-import { CONFIG } from '../config';
+import { CONFIG, CONFIG_ERROR } from '../config';
 import { initial } from '../lib/format';
 import { LookupContext, artPaths } from '../lib/lookup';
 import { Logo } from '../components/visuals';
-import { useRunner, useToast } from '../components/Toasts';
+import { useToast } from '../components/Toasts';
+import { ConfigError, SignInForm } from '../components/AuthForms';
 import { AdminContext, indexAdmin, type AdminCtx, type AdminIndex, type AdminTab } from './context';
 import { Dashboard } from './Dashboard';
 import { CardsAdmin } from './Cards';
@@ -122,28 +123,12 @@ export default function AdminApp() {
 }
 
 function AdminLogin({ api }: { api: AdminApi }) {
-  const run = useRunner();
-  const [sentTo, setSentTo] = useState<string | null>(null);
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const email = String(new FormData(e.currentTarget).get('email') || '').trim();
-    if (await run(() => api.sendLoginLink(email))) setSentTo(email);
-  }
   return (
     <main className="login one"><div className="login-panel">
       <div className="login-brand"><Logo /><span>{CONFIG.clubName}</span></div>
       <h1 className="login-title">Administration</h1>
       <p className="login-lead">Gère les cartes, les séries, les raretés et les codes du jeu.</p>
-      {sentTo ? (
-        <><p className="detail-own">Lien envoyé à {sentTo}.</p><p className="muted">Ouvre-le depuis cet appareil pour accéder à la console.</p>
-          <button className="btn ghost" onClick={() => setSentTo(null)}>Utiliser une autre adresse</button></>
-      ) : (
-        <form className="login-form" onSubmit={submit}>
-          <label htmlFor="email">Ton adresse e-mail</label>
-          <input id="email" name="email" type="email" className="input" autoComplete="email" required />
-          <button className="btn primary big">Recevoir mon lien de connexion</button>
-        </form>
-      )}
+      {CONFIG_ERROR ? <ConfigError /> : <SignInForm onSubmit={api.signIn} />}
     </div></main>
   );
 }

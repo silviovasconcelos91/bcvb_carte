@@ -74,18 +74,6 @@ export async function signedUrls(paths: string[]): Promise<Record<string, string
   return Object.fromEntries(paths.filter(p => urls[p]).map(p => [p, urls[p].url]));
 }
 
-// Connexion par lien magique, réservée aux membres invités
-export async function sendLoginLink(email: string) {
-  const { error } = await getSupabase().auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, emailRedirectTo: window.location.origin + window.location.pathname },
-  });
-  if (!error) return;
-  if (/signups? not allowed/i.test(error.message)) throw new Error("Cette adresse n'est pas inscrite au jeu. Demande une invitation au club.");
-  const wait = error.message.match(/after (\d+) seconds?/i);
-  throw new Error(wait ? `Attends ${wait[1]} secondes avant de redemander un lien.` : error.message);
-}
-
 // Session courante, puis suivi des connexions et déconnexions
 export async function watchSession(onChange: (uid: string | null) => void): Promise<string | null> {
   const sb = getSupabase();
