@@ -92,7 +92,9 @@ export interface BoosterCode {
   id: number;
   code: string;
   label: string | null;
-  set_id: number | null;
+  set_id: number | null; // limite le tirage à une série (null : séries actives) ; toujours null avec card_id
+  card_count: number | null; // nombre de cartes tirées, de 1 à 20 (null : booster complet)
+  card_id: number | null; // carte précise offerte ; set_id et card_count sont alors null
   max_uses: number | null;
   uses_count: number;
   expires_at: string | null;

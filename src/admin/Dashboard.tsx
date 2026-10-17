@@ -1,6 +1,6 @@
 import { initial, plural, relTime } from '../lib/format';
 import { rarityLabel } from '../lib/lookup';
-import { boosterPool, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
+import { boosterPool, codeCard, codeCardUnreleased, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
 
 const PLAYER = /passe|libéro|central|pointu|récept|capitaine|entraîn|joueu/i;
 
@@ -29,6 +29,8 @@ export function Dashboard() {
   const noPhoto = released.filter(c => !c.image_path && PLAYER.test(c.subtitle || '')).length;
   if (noPhoto) checks.push(['info', `${plural(noPhoto, 'carte de joueur publiée est', 'cartes de joueurs publiées sont')} encore sans photo.`, 'cards']);
   if (drafts) checks.push(['info', `${plural(drafts, 'carte est', 'cartes sont')} en préparation, ${drafts > 1 ? 'invisibles' : 'invisible'} pour les membres.`, 'cards']);
+  const unreleased = d.codes.filter(c => codeStatus(c) === 'active' && codeCardUnreleased(d, c));
+  if (unreleased.length) checks.push(['err', `${plural(unreleased.length, 'code actif donne', 'codes actifs donnent')} une carte non publiée, ${unreleased.length > 1 ? 'ils ne fonctionneront' : 'il ne fonctionnera'} pas : ${unreleased.map(c => `${c.code} (${codeCard(d, c)!.name})`).join(', ')}.`, 'codes']);
   const soon = d.codes.filter(c => codeStatus(c) === 'active' && c.expires_at && Date.parse(c.expires_at) - Date.now() < 864e5);
   if (soon.length) checks.push(['info', `${plural(soon.length, 'code expire', 'codes expirent')} dans moins de 24 h : ${soon.map(c => c.code).join(', ')}.`, 'codes']);
 

@@ -93,6 +93,15 @@ function createSupabaseGameApi(): GameApi {
 }
 
 /* -------------------------------- Démo -------------------------------- */
+interface DemoCode { id: number; code: string; set_id: number | null; card_count?: number | null; card_id?: number | null; max_uses: number | null; uses_count: number; expires_at: string | null }
+// Codes de la démo : booster complet, booster d'une série, une carte d'une série, une carte précise
+const DEMO_CODES: DemoCode[] = [
+  { id: 1, code: 'MATCH-14NOV', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
+  { id: 2, code: 'NOEL26', set_id: 2, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
+  { id: 3, code: 'NOEL-1', set_id: 2, card_count: 1, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
+  { id: 4, code: 'SOIREE', set_id: null, card_count: null, card_id: 18, max_uses: null, uses_count: 0, expires_at: null },
+];
+
 interface DemoDb {
   version: number;
   current: string | null;
@@ -103,7 +112,7 @@ interface DemoDb {
   profiles: Profile[];
   owned: Record<string, Record<number, number>>;
   discovered: Record<string, Record<number, boolean>>; // sert seulement au badge « Nouvelle »
-  codes: { id: number; code: string; set_id: number | null; max_uses: number | null; uses_count: number; expires_at: string | null }[];
+  codes: DemoCode[];
   redemptions: { code_id: number; user_id: string }[];
   trades: Trade[];
   nextTradeId: number;
@@ -138,10 +147,7 @@ function createDemoGameApi(): GameApi {
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
       owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1,
-      codes: [
-        { id: 1, code: 'MATCH-14NOV', set_id: null, max_uses: null, uses_count: 0, expires_at: null },
-        { id: 2, code: 'NOEL26', set_id: 2, max_uses: null, uses_count: 0, expires_at: null },
-      ],
+      codes: clone(DEMO_CODES),
     };
     for (const p of db.profiles) for (let i = 0; i < 14; i++) add(p.id, draw(null).id, 1);
     // Chaque membre reçoit une proposition d'échange du membre suivant
@@ -164,6 +170,7 @@ function createDemoGameApi(): GameApi {
   if (stored?.version === 1) {
     db = stored;
     for (const p of db.profiles) p.status ??= 'active'; // démo enregistrée avant les statuts
+    for (const c of DEMO_CODES) if (!db.codes.some(x => x.code === c.code)) db.codes.push(clone(c)); // codes ajoutés depuis
   } else seed();
 
   return {
@@ -208,7 +215,13 @@ function createDemoGameApi(): GameApi {
         const next = p.last_free_booster_at ? Date.parse(p.last_free_booster_at) + intervalMs(db.settings.free_booster_cooldown) : 0;
         if (next > Date.now()) fail(`Prochain booster gratuit le ${fmtDate(next)}`);
       }
-      const drawn = Array.from({ length: db.settings.booster_size }, () => draw(row ? row.set_id : null));
+      // Comme open_booster : carte précise (publiée, sinon échec sans consommer le code), nombre choisi ou booster complet
+      let drawn: Card[];
+      if (row?.card_id != null) {
+        const card = db.cards.find(c => c.id === row!.card_id);
+        if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
+        drawn = [card];
+      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row ? row.set_id : null));
       if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else p.last_free_booster_at = nowIso();
       const result = drawn.map(c => ({ card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: add(me, c.id, 1) }));
       save();

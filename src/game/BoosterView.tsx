@@ -63,7 +63,7 @@ export function BoosterView() {
       <div className="howto">
         <h3 className="h3">Comment gagner des cartes</h3>
         <p>Chaque booster contient {plural(st.booster_size, 'carte', 'cartes')}. Tu as droit à un booster {every}. Des codes sont affichés au gymnase pendant les matchs à domicile et les événements du club : chaque code donne un booster, une fois par personne.</p>
-        {api.mode === 'demo' && <p>Codes de démo : <code>MATCH-14NOV</code> et <code>NOEL26</code>, qui donne un booster de la série Tournoi de Noël.</p>}
+        {api.mode === 'demo' && <p>Codes de démo : <code>MATCH-14NOV</code> ; <code>NOEL26</code>, un booster de la série Tournoi de Noël ; <code>NOEL-1</code>, une carte de cette série ; <code>SOIREE</code>, la carte « Le trophée du club ».</p>}
       </div>
     </section>
   );

@@ -79,6 +79,25 @@
 .with-btn { display: flex; gap: 8px; }
 .input.mono { font: 700 18px/1 var(--font-c); letter-spacing: .04em; text-transform: uppercase; }
 .code-new { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 14px; margin-bottom: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.code-new .span { grid-column: 1 / -1; }
+.code-kind { justify-self: start; }
+.code-submit { display: flex; justify-content: flex-end; }
+.code-warn { margin: 0; padding: 10px 12px; border-left: 3px solid #E3A008; border-radius: 6px; background: color-mix(in srgb, #E3A008 14%, transparent); font-size: 14px; }
+.card-choice { display: grid; grid-template-columns: minmax(0, 1fr) 170px; align-items: start; gap: 18px; }
+.card-choice-side { display: grid; gap: 10px; }
+.card-choice-preview { width: 150px; padding: 4px; }
+.card-pick { display: grid; gap: 8px; }
+.card-pick-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+.card-pick-set { position: sticky; top: 0; z-index: 1; margin: 0; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font: 700 14px/1.2 var(--font); }
+.card-pick-list > div:first-child .card-pick-set { border-top: 0; }
+.card-pick .pick-row { appearance: none; width: 100%; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.card-pick .pick-row:hover { background: color-mix(in srgb, var(--club) 7%, transparent); }
+.card-pick .pick-row.is-on { background: color-mix(in srgb, var(--club) 14%, transparent); box-shadow: inset 3px 0 0 var(--club); }
+.card-pick .chip-art { width: 30px; height: 40px; }
+.card-pick-empty { padding: 14px 12px; }
+.tag.warn { background: color-mix(in srgb, #E3A008 22%, transparent); color: #8A5D00; }
+:root[data-theme="dark"] .tag.warn { color: #F2C14E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.warn { color: #F2C14E; } }
 .settings { display: grid; gap: 18px; max-width: 520px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 
 /* Éditeur de carte */
@@ -106,6 +125,10 @@ input[type=range] { accent-color: var(--club); width: 100%; }
 .poster-brand { display: flex; align-items: center; gap: 10px; font: 800 26px/1 var(--font-c); letter-spacing: .06em; }
 .poster-brand .logo { height: 52px; }
 .poster-title { margin: 4px 0 0; font: 800 34px/1 var(--font-c); }
+.poster-set { margin: -4px 0 0; color: var(--muted); font: 700 22px/1.1 var(--font-c); }
+.poster-warn { margin-bottom: 8px; }
+.poster-pair { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; }
+.poster-card { width: min(230px, 60vw); padding: 4px; }
 .poster-qr { width: min(320px, 70vw); padding: 10px; border-radius: 12px; background: #fff; }
 .poster-qr svg { display: block; width: 100%; height: auto; }
 .poster-code { margin: 0; font: 800 40px/1 var(--font-c); letter-spacing: .08em; }
@@ -120,13 +143,16 @@ input[type=range] { accent-color: var(--club); width: 100%; }
 }
 @media (max-width: 560px) {
   .row2 { grid-template-columns: minmax(0, 1fr); }
+  .card-choice { grid-template-columns: minmax(0, 1fr); }
+  .card-choice-side { order: -1; justify-items: center; }
+  .code-kind { justify-self: stretch; }
   .stat-row { grid-template-columns: 1fr 1fr 22px; }
   .figure { border-left: 0; border-top: 1px solid var(--line); }
   .figure:first-child { border-top: 0; }
   .figure-num { font-size: 36px; }
 }
 @media print {
-  body::before, #app, #toasts, .modal-head, .modal-foot { display: none !important; }
+  body::before, #root, .toasts, .modal-head, .modal-foot { display: none !important; }
   :root { padding: 0; }
   body { background: #fff; }
   .modal-back { position: static; padding: 0; background: none; animation: none; }
@@ -134,5 +160,9 @@ input[type=range] { accent-color: var(--club); width: 100%; }
   .modal-body { overflow: visible; }
   .poster { color: #000; }
   .poster-qr { width: 11cm; }
-  .poster-help { color: #333; }
+  .poster-help, .poster-set { color: #333; }
+  .poster-warn { display: none; }
+  .poster-pair .poster-qr { width: 8cm; }
+  .poster-card { width: 6.5cm; }
+  .poster-card, .poster-card * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

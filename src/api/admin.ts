@@ -174,7 +174,7 @@ interface DemoDb {
 
 function createDemoAdminApi(): AdminApi {
   const KEY = 'cartes-club-admin-demo-react-v1';
-  const VERSION = 2; // 2 : statut des membres et code d'inscription
+  const VERSION = 3; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise
   const fail = (msg: string): never => { throw new Error(msg); };
   let db: DemoDb;
   const save = () => writeStore(KEY, db);
@@ -199,11 +199,15 @@ function createDemoAdminApi(): AdminApi {
       ],
       owned: {}, openings: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
       codes: [
-        { id: 1, code: 'MATCH-14NOV', label: 'Match à domicile du 14/11', set_id: null, max_uses: null, uses_count: 18, expires_at: ago(-5), created_at: ago(2) },
-        { id: 2, code: 'NOEL26', label: 'Tournoi de Noël', set_id: 2, max_uses: 60, uses_count: 41, expires_at: null, created_at: ago(1) },
-        { id: 3, code: 'RENTREE', label: 'Fête de rentrée', set_id: null, max_uses: null, uses_count: 33, expires_at: ago(20), created_at: ago(30) },
+        { id: 1, code: 'MATCH-14NOV', label: 'Match à domicile du 14/11', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 18, expires_at: ago(-5), created_at: ago(2) },
+        { id: 2, code: 'NOEL26', label: 'Tournoi de Noël', set_id: 2, card_count: null, card_id: null, max_uses: 60, uses_count: 41, expires_at: null, created_at: ago(1) },
+        { id: 4, code: 'NOEL-1', label: 'Tombola du tournoi de Noël', set_id: 2, card_count: 1, card_id: null, max_uses: 30, uses_count: 4, expires_at: null, created_at: ago(0.5) },
+        { id: 3, code: 'RENTREE', label: 'Fête de rentrée', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 33, expires_at: ago(20), created_at: ago(30) },
       ],
     };
+    const recruit = db.nextId;
+    // Carte d'événement encore en préparation : le tableau de bord signale son code
+    db.codes.push({ id: 5, code: 'RECRUE', label: 'Nouvelle recrue', set_id: null, card_count: null, card_id: recruit, max_uses: null, uses_count: 0, expires_at: ago(-14), created_at: ago(0.2) });
     db.cards.push({ id: db.nextId++, set_id: 1, number: 20, name: 'Nouvelle recrue', subtitle: 'Centrale', rarity_id: 2, stats: { numero: 14, bloc: 8, attaque: 7, service: 5 }, description: null, image_path: null, thumb_path: null, is_released: false, in_boosters: true });
     let id = 1;
     for (const p of db.profiles.filter(x => x.status === 'active')) {
@@ -275,10 +279,13 @@ function createDemoAdminApi(): AdminApi {
     },
     async saveSettings(st) { Object.assign(db.settings, st); save(); },
     async saveCode(code) {
+      // Mêmes contraintes que la table booster_codes
+      if (code.card_count != null && (!Number.isInteger(code.card_count) || code.card_count < 1 || code.card_count > 20)) fail('Le nombre de cartes doit être compris entre 1 et 20.');
+      if (code.card_id != null && (code.set_id != null || code.card_count != null)) fail("Un code qui donne une carte précise n'a ni série ni nombre de cartes.");
       if (code.code && db.codes.some(c => c.code.toUpperCase() === code.code!.toUpperCase() && c.id !== code.id)) fail('Ce code existe déjà.');
       const existing = code.id ? db.codes.find(c => c.id === code.id) : undefined;
       if (existing) Object.assign(existing, code);
-      else db.codes.push({ code: '', label: null, set_id: null, max_uses: null, expires_at: null, ...code, id: db.nextId++, uses_count: 0, created_at: new Date().toISOString() });
+      else db.codes.push({ code: '', label: null, set_id: null, card_count: null, card_id: null, max_uses: null, expires_at: null, ...code, id: db.nextId++, uses_count: 0, created_at: new Date().toISOString() });
       save();
     },
     async deleteCode(id) { db.codes = db.codes.filter(c => c.id !== id); save(); },
