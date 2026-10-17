@@ -48,9 +48,9 @@ export function BoosterView() {
         <div className="stage-top"><Court /><div className="pack-spot"><Pack setLabel={boosterSetLabel(d)} /></div></div>
         <div className="stage-in">
           <button className="btn primary big" disabled={wait > 0 || busy !== null} onClick={() => void open(null)}>
-            {busy === 'free' ? 'Ouverture…' : wait > 0 ? 'Booster gratuit déjà ouvert' : 'Ouvrir mon booster gratuit'}
+            {busy === 'free' ? 'Ouverture…' : wait > 0 ? 'Booster déjà ouvert' : 'Ouvrir mon booster'}
           </button>
-          <p className="cooldown" aria-live="polite">{wait > 0 ? `Le prochain sera disponible dans ${fmtDuration(wait)}.` : 'Ton booster gratuit est prêt.'}</p>
+          <p className="cooldown" aria-live="polite">{wait > 0 ? `Le prochain sera disponible dans ${fmtDuration(wait)}.` : 'Ton booster est prêt.'}</p>
           {pendingCode && <p className="cooldown">Code scanné : il ne reste plus qu'à l'utiliser.</p>}
           <form className="code-form" onSubmit={submit}>
             <label htmlFor="code-input">Tu as un code&nbsp;?</label>
@@ -62,7 +62,7 @@ export function BoosterView() {
       </div>
       <div className="howto">
         <h3 className="h3">Comment gagner des cartes</h3>
-        <p>Chaque booster contient {plural(st.booster_size, 'carte', 'cartes')}. Tu as droit à un booster gratuit {every}. Des codes sont affichés au gymnase pendant les matchs à domicile et les événements du club : chaque code donne un booster, une fois par personne.</p>
+        <p>Chaque booster contient {plural(st.booster_size, 'carte', 'cartes')}. Tu as droit à un booster {every}. Des codes sont affichés au gymnase pendant les matchs à domicile et les événements du club : chaque code donne un booster, une fois par personne.</p>
         {api.mode === 'demo' && <p>Codes de démo : <code>MATCH-14NOV</code> et <code>NOEL26</code>, qui donne un booster de la série Tournoi de Noël.</p>}
       </div>
     </section>
