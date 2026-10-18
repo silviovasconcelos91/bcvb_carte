@@ -3,7 +3,7 @@ import type { GameApi } from '../api/game';
 import { CONFIG, CONFIG_ERROR } from '../config';
 import { checkPassword, checkPseudo, loginId } from '../lib/auth';
 import { initial, plural } from '../lib/format';
-import { LookupContext, makeLookup } from '../lib/lookup';
+import { LookupContext, RarityStyles, makeLookup } from '../lib/lookup';
 import { CardBack, CardView, Court, Logo } from '../components/visuals';
 import { ConfigError, SignInForm } from '../components/AuthForms';
 import { useToast } from '../components/Toasts';
@@ -22,6 +22,7 @@ export function Login({ api, onLogin }: { api: GameApi; onLogin: (uid: string) =
         <Court />
         {preview ? (
           <LookupContext.Provider value={makeLookup(preview.rarities, preview.sets, preview.cards)}>
+            <RarityStyles />
             {fan.map(c => <CardView key={c!.id} card={c!} />)}
           </LookupContext.Provider>
         ) : (<><CardBack /><CardBack /><CardBack /></>)}

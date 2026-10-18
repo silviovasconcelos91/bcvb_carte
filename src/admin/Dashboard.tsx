@@ -1,5 +1,5 @@
 import { initial, plural, relTime } from '../lib/format';
-import { rarityLabel } from '../lib/lookup';
+import { rClass, rarityLabel } from '../lib/lookup';
 import { boosterPool, codeCard, codeCardUnreleased, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
 
 const PLAYER = /passe|libéro|central|pointu|récept|capitaine|entraîn|joueu/i;
@@ -58,7 +58,7 @@ export function Dashboard() {
                     <span className="avatar sm" aria-hidden="true">{initial(nameOf(d, o.user_id))}</span>
                     <span className="act-main"><strong>{nameOf(d, o.user_id)}</strong><span className="muted">{relTime(o.opened_at)}{code ? `, code ${code.code}` : ''}</span></span>
                     <span className="act-cards">
-                      {o.card_ids.map((id, i) => { const c = d.cardById.get(id); return c ? <i key={i} className={`dot r${c.rarity_id}`} title={`${c.name}, ${rarityLabel(d.lookup, c.rarity_id)}`} /> : null; })}
+                      {o.card_ids.map((id, i) => { const c = d.cardById.get(id); return c ? <i key={i} className={`dot ${rClass(d.lookup, c)}`} title={`${c.name}, ${rarityLabel(d.lookup, c.rarity_id)}`} /> : null; })}
                     </span>
                   </li>
                 );

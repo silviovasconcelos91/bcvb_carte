@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import type { Card } from '../lib/types';
 import { CONFIG } from '../config';
 import { initial, pad2, statLabel } from '../lib/format';
-import { artUrl, cardStats, rarityLabel, useLookup, type ArtSize } from '../lib/lookup';
+import { artUrl, cardStats, effectOf, rarClass, rarityLabel, useLookup, type ArtSize } from '../lib/lookup';
 import { useTilt } from './useTilt';
 
 // Ballon aux couleurs du club : cercle blanc et trois bandes courbes
@@ -123,9 +123,9 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
   const set = L.setById.get(card.set_id);
   const stats = cardStats(card);
   const url = artUrl(L, card, size);
-  const r = card.rarity_id ?? 1;
+  const r = effectOf(L, card.rarity_id);
   return (
-    <div className={`card r${r}${ghost ? ' is-ghost' : ''}`} {...tiltProps}>
+    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}${ghost ? ' is-ghost' : ''}`} {...tiltProps}>
       <div className="card-body">
         <div className="card-face">
           <div className="card-top">
@@ -155,6 +155,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
           </div>
         </div>
         {r >= 5 && <div className="card-holo" aria-hidden="true" />}
+        <div className="card-fx" aria-hidden="true" />
         <div className="card-glare" aria-hidden="true" />
       </div>
       {qty > 1 && <span className="qty">×{qty}</span>}

@@ -6,6 +6,8 @@ export interface Rarity {
   label: string;
   weight: number;
   is_secret: boolean;
+  effect: number; // 1 à 15, voir EFFECTS dans lib/lookup.tsx
+  color: string | null; // #rrggbb, sinon couleur par défaut de l'effet
 }
 
 export interface CardSet {
@@ -79,6 +81,7 @@ export interface Trade {
 export interface Settings {
   booster_size: number;
   free_booster_cooldown: string;
+  free_booster_max?: number; // boosters gratuits cumulables (absent avant le patch : 1)
 }
 
 export interface DrawnCard {

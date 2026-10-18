@@ -38,7 +38,7 @@ create table if not exists public.profiles (
   id                   uuid primary key references auth.users (id) on delete cascade,
   username             text not null check (char_length(username) between 2 and 30),
   status               text not null default 'active' check (status in ('active', 'pending')),
-  last_free_booster_at timestamptz,
+  last_free_booster_at timestamptz,  -- horloge de recharge des boosters gratuits (voir open_booster), null = stock plein
   created_at           timestamptz not null default now()
 );
 
@@ -46,7 +46,8 @@ create table if not exists public.profiles (
 create table if not exists public.game_settings (
   id                    boolean primary key default true check (id),
   booster_size          int not null default 5 check (booster_size between 1 and 20),
-  free_booster_cooldown interval not null default interval '1 day'
+  free_booster_cooldown interval not null default interval '1 day',
+  free_booster_max      int not null default 2 check (free_booster_max between 1 and 10)  -- boosters gratuits cumulables
 );
 
 create table if not exists public.rarities (
@@ -54,7 +55,9 @@ create table if not exists public.rarities (
   code   text not null unique,
   label  text not null,
   weight numeric not null check (weight >= 0),     -- poids relatif au tirage (0 = jamais)
-  is_secret boolean not null default false         -- true = rareté masquée tant que la carte n'est pas obtenue
+  is_secret boolean not null default false,        -- true = rareté masquée tant que la carte n'est pas obtenue
+  effect smallint not null default 1 check (effect between 1 and 15),  -- effet visuel, voir EFFECTS dans src/lib/lookup.tsx
+  color  text check (color ~ '^#[0-9A-Fa-f]{6}$')  -- couleur de l'effet (null = couleur par défaut de l'effet)
 );
 
 -- Séries / extensions : "Saison 2026-27", "Tournoi de Noël"...
@@ -180,6 +183,19 @@ create index if not exists booster_openings_user_idx on public.booster_openings 
 
 alter table public.profiles      add column if not exists status text not null default 'active' check (status in ('active', 'pending'));
 alter table public.rarities      add column if not exists is_secret boolean not null default false;
+-- Effet et couleur des raretés : les raretés existantes gardent leur rendu (effet = numéro)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'rarities' and column_name = 'effect') then
+    alter table public.rarities add column effect smallint not null default 1 check (effect between 1 and 15);
+    update public.rarities set effect = least(greatest(id, 1), 6);
+  end if;
+end $$;
+-- 15 effets disponibles (une version précédente de ce script en autorisait 6)
+alter table public.rarities drop constraint if exists rarities_effect_check;
+alter table public.rarities add constraint rarities_effect_check check (effect between 1 and 15);
+alter table public.rarities      add column if not exists color text check (color ~ '^#[0-9A-Fa-f]{6}$');
+alter table public.game_settings add column if not exists free_booster_max int not null default 2 check (free_booster_max between 1 and 10);
 alter table public.cards         add column if not exists thumb_path text;
 alter table public.cards         add column if not exists in_boosters boolean not null default true;
 alter table public.booster_codes add column if not exists card_count int check (card_count between 1 and 20);
@@ -391,6 +407,7 @@ declare
   v_is_new   boolean;
   v_ids      bigint[] := '{}';
   v_result   jsonb := '[]'::jsonb;
+  v_clock    timestamptz;
 begin
   if v_uid is null then
     raise exception 'Connexion requise';
@@ -407,12 +424,17 @@ begin
     if not found then
       raise exception 'Profil introuvable';
     end if;
-    if v_profile.last_free_booster_at + v_settings.free_booster_cooldown > now() then
+    -- Un booster se recharge à chaque délai, jusqu'à free_booster_max en réserve.
+    -- last_free_booster_at sert d'horloge : boosters disponibles = (maintenant - horloge) / délai.
+    -- L'horloge ne remonte jamais au-delà du stock maximum, et chaque ouverture l'avance d'un délai.
+    v_clock := greatest(coalesce(v_profile.last_free_booster_at, '-infinity'::timestamptz),
+                        now() - v_settings.free_booster_cooldown * greatest(v_settings.free_booster_max, 1));
+    if v_clock + v_settings.free_booster_cooldown > now() then
       raise exception 'Prochain booster gratuit le %',
-        to_char((v_profile.last_free_booster_at + v_settings.free_booster_cooldown)
+        to_char((v_clock + v_settings.free_booster_cooldown)
                 at time zone 'Europe/Paris', 'DD/MM "à" HH24:MI');
     end if;
-    update public.profiles set last_free_booster_at = now() where id = v_uid;
+    update public.profiles set last_free_booster_at = v_clock + v_settings.free_booster_cooldown where id = v_uid;
   else
     select * into v_code from public.booster_codes
      where upper(code) = upper(btrim(p_code))
@@ -854,7 +876,7 @@ grant execute on function public.is_admin(), public.admin_reset_free_booster(uui
 -- Droits d'écriture : accordés à tous les comptes connectés, mais les
 -- policies ci-dessous ne laissent passer que les administrateurs.
 grant insert, update, delete on public.cards, public.card_sets to authenticated;
-grant insert, update on public.rarities to authenticated;
+grant insert, update, delete on public.rarities to authenticated;
 grant update on public.game_settings to authenticated;
 grant select, insert, update, delete on public.booster_codes to authenticated;
 grant select on public.booster_code_redemptions to authenticated;
@@ -892,6 +914,10 @@ create policy "Admin : créer des raretés" on public.rarities
 drop policy if exists "Admin : modifier les raretés" on public.rarities;
 create policy "Admin : modifier les raretés" on public.rarities
   for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+-- Suppression bloquée par la base tant que des cartes utilisent la rareté
+drop policy if exists "Admin : supprimer des raretés" on public.rarities;
+create policy "Admin : supprimer des raretés" on public.rarities
+  for delete to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : modifier les réglages" on public.game_settings;
 create policy "Admin : modifier les réglages" on public.game_settings
@@ -1036,13 +1062,13 @@ grant execute on function public.admin_set_member_status(uuid, text) to authenti
 
 insert into public.game_settings default values on conflict (id) do nothing;
 
-insert into public.rarities (id, code, label, weight, is_secret) values
-  (1, 'common',     'Commune',     60,   false),
-  (2, 'uncommon',   'Peu commune', 25,   false),
-  (3, 'rare',       'Rare',        10,   false),
-  (4, 'ultra_rare', 'Ultra rare',   4,   false),
-  (5, 'legendary',  'Légendaire',   1,   false),
-  (6, 'secret',     'Secrète',      0.5, true)
+insert into public.rarities (id, code, label, weight, is_secret, effect) values
+  (1, 'common',     'Commune',     60,   false, 1),
+  (2, 'uncommon',   'Peu commune', 25,   false, 2),
+  (3, 'rare',       'Rare',        10,   false, 3),
+  (4, 'ultra_rare', 'Ultra rare',   4,   false, 4),
+  (5, 'legendary',  'Légendaire',   1,   false, 5),
+  (6, 'secret',     'Secrète',      0.5, true,  6)
 on conflict (id) do nothing;
 
 -- Séries et cartes de démo : seulement sur un projet neuf (aucune série encore)

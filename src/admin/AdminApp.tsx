@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createAdminApi, type AdminApi } from '../api/admin';
 import { CONFIG, CONFIG_ERROR } from '../config';
 import { initial } from '../lib/format';
-import { LookupContext, artPaths } from '../lib/lookup';
+import { LookupContext, RarityStyles, artPaths } from '../lib/lookup';
 import { Logo } from '../components/visuals';
 import { useToast } from '../components/Toasts';
 import { ConfigError, SignInForm } from '../components/AuthForms';
@@ -86,6 +86,7 @@ export default function AdminApp() {
 
   return (
     <LookupContext.Provider value={ctx.d.lookup}>
+      <RarityStyles />
       <AdminContext.Provider value={ctx}>
         <header className="top"><div className="top-in">
           <div className="brand"><Logo /><h1 className="brand-name">Administration {CONFIG.clubName}</h1></div>

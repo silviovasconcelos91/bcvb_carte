@@ -79,7 +79,7 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
             <span className="chip-text"><span className="chip-name">{known ? cardName(c) : c.name}{i.quantity > 1 ? ` ×${i.quantity}` : ''}</span><span className="chip-meta">{warn ? "Tu ne l'as plus" : rarText(L, c)}</span></span>
           </>
         );
-        const cls = `chip ${rClass(c)}${warn ? ' warn' : ''}`;
+        const cls = `chip ${rClass(L, c)}${warn ? ' warn' : ''}`;
         return (
           <li key={`${i.side}-${i.card_id}`}>
             {known ? <button className={cls} onClick={() => openCard(c.id)}>{inner}</button> : <span className={`${cls} mystery`}>{inner}</span>}

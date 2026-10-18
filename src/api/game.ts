@@ -3,7 +3,7 @@ import type { Card, CardRef, CardSet, CatalogRow, DrawnCard, Profile, Rarity, Se
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
-import { fmtDate, intervalMs } from '../lib/format';
+import { fmtDate, freeBoosters, intervalMs } from '../lib/format';
 
 export interface GameData {
   settings: Settings;
@@ -145,7 +145,7 @@ function createDemoGameApi(): GameApi {
 
   function seed() {
     db = {
-      version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day' },
+      version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
       owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1,
@@ -214,8 +214,8 @@ function createDemoGameApi(): GameApi {
         if (row.max_uses != null && row.uses_count >= row.max_uses) fail('Code épuisé');
         if (db.redemptions.some(r => r.code_id === row!.id && r.user_id === me)) fail('Code déjà utilisé');
       } else {
-        const next = p.last_free_booster_at ? Date.parse(p.last_free_booster_at) + intervalMs(db.settings.free_booster_cooldown) : 0;
-        if (next > Date.now()) fail(`Prochain booster gratuit le ${fmtDate(next)}`);
+        const fb = freeBoosters(p.last_free_booster_at, db.settings);
+        if (!fb.available) fail(`Prochain booster gratuit le ${fmtDate(Date.now() + fb.nextIn)}`);
       }
       // Comme open_booster : carte précise (publiée, sinon échec sans consommer le code), nombre choisi ou booster complet
       let drawn: Card[];
@@ -224,7 +224,13 @@ function createDemoGameApi(): GameApi {
         if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
         drawn = [card];
       } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row ? row.set_id : null));
-      if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else p.last_free_booster_at = nowIso();
+      if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else {
+        // Avance l'horloge de recharge d'un délai (voir open_booster)
+        const cd = intervalMs(db.settings.free_booster_cooldown);
+        const max = Math.max(1, db.settings.free_booster_max ?? 1);
+        const clock = Math.max(p.last_free_booster_at ? Date.parse(p.last_free_booster_at) : -Infinity, Date.now() - max * cd);
+        p.last_free_booster_at = new Date(clock + cd).toISOString();
+      }
       const result = drawn.map(c => ({ card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: add(me, c.id, 1) }));
       save();
       return clone(result);

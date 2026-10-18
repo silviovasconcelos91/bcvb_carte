@@ -44,7 +44,8 @@ export interface AdminApi {
   deleteCard(card: Card): Promise<void>;
   saveSet(set: Partial<CardSet> & { name: string; in_boosters: boolean }): Promise<void>;
   deleteSet(id: number): Promise<void>;
-  saveRarities(list: Pick<Rarity, 'id' | 'label' | 'weight' | 'is_secret'>[]): Promise<void>;
+  saveRarities(list: RarityInput[]): Promise<void>; // crée les raretés absentes, met à jour les autres
+  deleteRarity(id: number): Promise<void>;
   saveSettings(st: Settings): Promise<void>;
   saveCode(code: CodeInput): Promise<void>;
   deleteCode(id: number): Promise<void>;
@@ -55,8 +56,11 @@ export interface AdminApi {
   reset?(): Promise<void>;
 }
 
+export type RarityInput = Pick<Rarity, 'id' | 'code' | 'label' | 'weight' | 'is_secret' | 'effect' | 'color'>;
+
 // Messages d'erreur de la base traduits en français
 export function friendly(msg: string): string {
+  if (/delete on table "rarities"/.test(msg)) return 'Des cartes utilisent encore cette rareté.';
   if (/cards_set_id_number_key/.test(msg)) return 'Ce numéro est déjà pris dans cette série.';
   if (/card_sets_name_key/.test(msg)) return 'Une série porte déjà ce nom.';
   if (/booster_codes_code_idx/.test(msg)) return 'Ce code existe déjà.';
@@ -137,9 +141,8 @@ function createSupabaseAdminApi(): AdminApi {
       else ok(await sb.from('card_sets').insert({ name, in_boosters }).select().single());
     },
     deleteSet: async id => { ok(await sb.from('card_sets').delete().eq('id', id)); },
-    async saveRarities(list) {
-      for (const { id, label, weight, is_secret } of list) ok(await sb.from('rarities').update({ label, weight, is_secret }).eq('id', id).select().single());
-    },
+    saveRarities: async list => { ok(await sb.from('rarities').upsert(list).select()); },
+    deleteRarity: async id => { ok(await sb.from('rarities').delete().eq('id', id)); },
     saveSettings: async st => { ok(await sb.from('game_settings').update(st).eq('id', true).select().single()); },
     async saveCode({ id, ...row }) {
       if (id) ok(await sb.from('booster_codes').update(row).eq('id', id).select().single());
@@ -187,7 +190,7 @@ function createDemoAdminApi(): AdminApi {
   const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
   function seed() {
     db = {
-      version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day' },
+      version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: [
         ...[{ id: 'demo-admin', username: 'Toi' }, ...DEMO_MEMBERS].map((p, i): Profile => ({
@@ -274,7 +277,13 @@ function createDemoAdminApi(): AdminApi {
       save();
     },
     async saveRarities(list) {
-      for (const r of list) { const x = db.rarities.find(y => y.id === r.id); if (x) Object.assign(x, r); }
+      for (const r of list) { const x = db.rarities.find(y => y.id === r.id); if (x) Object.assign(x, r); else db.rarities.push({ ...r }); }
+      db.rarities.sort((a, b) => a.id - b.id);
+      save();
+    },
+    async deleteRarity(id) {
+      if (db.cards.some(c => c.rarity_id === id)) fail(friendly('delete on table "rarities"'));
+      db.rarities = db.rarities.filter(r => r.id !== id);
       save();
     },
     async saveSettings(st) { Object.assign(db.settings, st); save(); },

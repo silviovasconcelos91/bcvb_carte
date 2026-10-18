@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createGameApi, type GameApi } from '../api/game';
 import { CONFIG } from '../config';
-import { LookupContext, artPaths } from '../lib/lookup';
+import { LookupContext, RarityStyles, artPaths } from '../lib/lookup';
 import type { DrawnCard, Profile } from '../lib/types';
 import { Logo } from '../components/visuals';
 import { useToast } from '../components/Toasts';
@@ -151,6 +151,7 @@ export default function GameApp() {
 
   return (
     <LookupContext.Provider value={ctx.d.lookup}>
+      <RarityStyles />
       <GameContext.Provider value={ctx}>
         <Header onLogout={logout} onAccount={() => setAccount(true)} onSwitch={async who => { await loginAs(who); toast(`Tu joues maintenant avec le profil de ${ctx.d.profileById.get(who)?.username ?? ''}`); }} />
         {api.mode === 'demo' && <DemoStrip onReset={async () => { await api.demo?.reset(); setUid(null); setD(null); toast('Démo réinitialisée'); }} />}

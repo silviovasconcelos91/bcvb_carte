@@ -2,24 +2,29 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as 
 import { createPortal } from 'react-dom';
 import type { Card, DrawnCard } from '../lib/types';
 import { plural, reduceMotion, sleep } from '../lib/format';
-import { cardName, rarityLabel, rClass, useLookup } from '../lib/lookup';
+import { cardName, colorOf, effectOf, rarClass, rarityLabel, rClass, useLookup } from '../lib/lookup';
 import { CardBack, CardView, MiniArt, Pack } from '../components/visuals';
 import { useGame } from './context';
 import { boosterSetLabel } from './BoosterView';
 
 type Phase = 'pack' | 'deck' | 'recap';
 type PackStep = '' | 'drop' | 'charge' | 'torn';
-interface Fx { r: number; key: number; x: number; y: number }
+interface Fx { r: number; id: number; key: number; x: number; y: number }
 
 // Ouverture du paquet : il tombe, tremble de plus en plus fort, puis se déchire dans un flash
 const PACK_STEPS: [PackStep, number][] = [['drop', 550], ['charge', 1050], ['torn', 800]];
 // Suspense avant de retourner une carte très rare (la carte tremble et s'illumine)
 const SUSPENSE: Record<number, number> = { 5: 500, 6: 1100 };
 
-const sparkColors = (r: number) => (r >= 6 ? ['#FF4DA6', '#FFD600', '#00E0FF', '#8660FF', '#3DFF9E'] : r === 5 ? ['#FFD34E', '#FFF4C2', '#F2B01E'] : ['#B79CFF', '#E3D7FF', '#8B5CF6']);
+// Mélange une couleur #rrggbb avec du blanc (t > 0) ou du noir (t < 0)
+const shade = (hex: string, t: number) => '#' + [1, 3, 5].map(i => {
+  const v = parseInt(hex.slice(i, i + 2), 16);
+  return Math.round(t > 0 ? v + (255 - v) * t : v * (1 + t)).toString(16).padStart(2, '0');
+}).join('');
+const sparkColors = (r: number, hex: string) => (r >= 6 ? ['#FF4DA6', '#FFD600', '#00E0FF', '#8660FF', '#3DFF9E'] : [shade(hex, 0.35), shade(hex, 0.75), hex]);
 
-function burst(el: HTMLElement, r: number) {
-  const colors = sparkColors(r);
+function burst(el: HTMLElement, r: number, hex: string) {
+  const colors = sparkColors(r, hex);
   const count = r >= 6 ? 40 : r === 5 ? 28 : 18;
   const reach = r >= 6 ? 150 : r === 5 ? 120 : 70;
   for (let i = 0; i < count; i++) {
@@ -34,8 +39,8 @@ function burst(el: HTMLElement, r: number) {
 }
 
 // Pluie de pièces d'or (légendaire) ou de confettis (secrète) sur tout l'écran
-function rain(el: HTMLElement, r: number) {
-  const colors = sparkColors(r);
+function rain(el: HTMLElement, r: number, hex: string) {
+  const colors = sparkColors(r, hex);
   const count = r >= 6 ? 80 : 40;
   for (let i = 0; i < count; i++) {
     const s = document.createElement('span');
@@ -79,8 +84,11 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   });
   const n = items.length;
   const fresh = drawn.filter(x => x.is_new).length;
-  // Le halo du paquet prend la couleur de la meilleure carte (à partir d'ultra rare)
-  const best = Math.max(1, ...items.map(x => x.card.rarity_id ?? 1));
+  // Le halo du paquet prend la couleur de la meilleure carte (à partir de l'effet Irisé)
+  const tier = (c: Card) => effectOf(L, c.rarity_id ?? 1);
+  const bestCard = items.map(x => x.card).reduce<Card | null>((a, c) => (!a || tier(c) > tier(a) ? c : a), null);
+  const best = bestCard ? tier(bestCard) : 1;
+  const bestCls = rarClass(L, bestCard?.rarity_id ?? 1);
 
   useEffect(() => {
     document.body.classList.add('no-scroll');
@@ -104,7 +112,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   async function advance(dir: -1 | 1 = -1) {
     if (lock.current || phase !== 'deck') return;
     if (!flipped) {
-      const r = items[cur].card.rarity_id ?? 1;
+      const id = items[cur].card.rarity_id ?? 1;
+      const r = effectOf(L, id);
+      const hex = colorOf(L.rarityById.get(id) ?? { id });
       const show = r >= 4 && !reduceMotion();
       if (show && SUSPENSE[r]) {
         lock.current = true;
@@ -116,11 +126,11 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
       setFlipped(true);
       if (show) {
         const b = deckRef.current?.getBoundingClientRect();
-        if (b) setFx({ r, key: Date.now(), x: b.left + b.width / 2, y: b.top + b.height / 2 });
+        if (b) setFx({ r, id, key: Date.now(), x: b.left + b.width / 2, y: b.top + b.height / 2 });
         // Les éclats partent quand la carte est à moitié retournée
         setTimeout(() => {
-          if (topRef.current) burst(topRef.current, r);
-          if (r >= 5 && rootRef.current) rain(rootRef.current, r);
+          if (topRef.current) burst(topRef.current, r, hex);
+          if (r >= 5 && rootRef.current) rain(rootRef.current, r, hex);
         }, 280);
       }
       return;
@@ -149,9 +159,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
 
   return createPortal(
     <div className="reveal" ref={rootRef} role="dialog" aria-modal="true" aria-label="Ouverture du booster">
-      {phase === 'pack' && step === 'torn' && <div className={`reveal-flash pack-flash fx-r${best}`} aria-hidden="true" />}
+      {phase === 'pack' && step === 'torn' && <div className={`reveal-flash pack-flash fx-r${best} ${bestCls}`} aria-hidden="true" />}
       {fx && (
-        <div key={fx.key} className={`reveal-fx fx-r${fx.r}`} style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true">
+        <div key={fx.key} className={`reveal-fx fx-r${fx.r} ${rarClass(L, fx.id)}`} style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true">
           {fx.r >= 5 && <span className="fx-rays" />}
           <span className="fx-shock" />
           {fx.r >= 6 && <span className="fx-shock late" />}
@@ -160,7 +170,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
       )}
       <div className={`reveal-stage${fx && fx.r >= 5 ? ` quake-r${fx.r}` : ''}`}>
         {phase === 'pack' && (
-          <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0}`}>
+          <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0} ${bestCls}`}>
             <span className="pack-rays" aria-hidden="true" />
             <span className="pack-aura" aria-hidden="true" />
             <Pack setLabel={boosterSetLabel(d)} />
@@ -178,7 +188,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
                   ...(top && leaving ? { '--out': leaving < 0 ? '-140%' : '140%', '--outr': leaving < 0 ? '-16deg' : '16deg' } : {}),
                   ...(top && drag != null ? { '--dx': `${drag}px`, '--dr': `${(drag / 18).toFixed(1)}deg` } : {}),
                 } as CSSProperties;
-                const cls = ['flip', `r${card.rarity_id ?? 1}`, top && 'is-top', depth > 3 && 'is-deep', top && flipped && 'is-flipped', top && leaving && 'leaving', top && drag != null && 'dragging', top && charging && 'charging'].filter(Boolean).join(' ');
+                const cls = ['flip', rarClass(L, card.rarity_id ?? 1), top && 'is-top', depth > 3 && 'is-deep', top && flipped && 'is-flipped', top && leaving && 'leaving', top && drag != null && 'dragging', top && charging && 'charging'].filter(Boolean).join(' ');
                 return (
                   <div key={i} ref={top ? topRef : undefined} className={cls} style={style}
                     {...(top ? {
@@ -193,7 +203,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
                   </div>
                 );
               })}
-              {fx && <span key={fx.key} className={`rare-banner r${fx.r}`}>{rarityLabel(L, fx.r)}</span>}
+              {fx && <span key={fx.key} className={`rare-banner ${rarClass(L, fx.id)}`}>{rarityLabel(L, fx.id)}</span>}
             </div>
             <div className="deck-ui">
               <p className="deck-count" aria-live="polite">Carte {cur + 1} sur {n}</p>
@@ -209,7 +219,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
             <p className="reveal-sum">{fresh ? `${plural(fresh, 'nouvelle carte', 'nouvelles cartes')} dans ta collection` : 'Aucune nouvelle carte, mais des doubles à échanger'}</p>
             <ul className="recap-list">
               {items.map(({ it, card }, i) => (
-                <li key={i} className={`recap-item ${rClass(card)}`}>
+                <li key={i} className={`recap-item ${rClass(L, card)}`}>
                   <span className="chip-art"><MiniArt card={card} /></span>
                   <span className="chip-text"><span className="chip-name">{cardName(card)}</span><span className="chip-meta">{rarityLabel(L, card.rarity_id)}</span></span>
                   {it.is_new && <span className="tag new">Nouvelle</span>}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { CardRef } from '../lib/types';
+import type { Card, CardRef } from '../lib/types';
 import { initial, plural, sumValues } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
 import { MiniArt } from '../components/visuals';
@@ -61,12 +61,14 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
   function pickList(owner: string, sel: Map<number, number>, kind: 'give' | 'want') {
     const inv = d.owned.get(owner) ?? new Map<number, number>();
     const missing = (id: number) => !d.mine.get(id);
+    // Plus le poids au tirage est faible, plus la carte est rare
+    const rank = (c: Card) => (c.rarity_id != null ? L.rarityById.get(c.rarity_id)?.weight ?? 0 : 0);
     const theirs = to ? d.owned.get(to) : undefined;
     const theyMiss = (id: number) => !theirs?.get(id);
     const rows = [...inv.entries()].map(([cid, q]) => ({ c: d.cardById.get(cid)!, q })).filter(x => x.c);
     rows.sort(kind === 'give'
-      ? (a, b) => Number(theyMiss(b.c.id)) - Number(theyMiss(a.c.id)) || Number(b.q > 1) - Number(a.q > 1) || (a.c.rarity_id ?? 9) - (b.c.rarity_id ?? 9) || cardName(a.c).localeCompare(cardName(b.c), 'fr')
-      : (a, b) => Number(missing(b.c.id)) - Number(missing(a.c.id)) || (b.c.rarity_id ?? 9) - (a.c.rarity_id ?? 9) || cardName(a.c).localeCompare(cardName(b.c), 'fr'));
+      ? (a, b) => Number(theyMiss(b.c.id)) - Number(theyMiss(a.c.id)) || Number(b.q > 1) - Number(a.q > 1) || rank(b.c) - rank(a.c) || cardName(a.c).localeCompare(cardName(b.c), 'fr')
+      : (a, b) => Number(missing(b.c.id)) - Number(missing(a.c.id)) || rank(a.c) - rank(b.c) || cardName(a.c).localeCompare(cardName(b.c), 'fr'));
     if (!rows.length) {
       return <p className="pick-empty muted">{kind === 'give' ? "Tu n'as pas encore de carte à donner. Tu peux quand même en demander une." : "Ce membre n'a pas encore de carte."}</p>;
     }
@@ -76,7 +78,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
         {rows.map(({ c, q }) => {
           const n = sel.get(c.id) ?? 0;
           return (
-            <li key={c.id} className={`pick-row ${rClass(c)}${n ? ' is-on' : ''}`}>
+            <li key={c.id} className={`pick-row ${rClass(L, c)}${n ? ' is-on' : ''}`}>
               <span className="chip-art"><MiniArt card={c} /></span>
               <span className="pick-main">
                 <span className="pick-name">{cardName(c)}{kind === 'give' ? <>{theyMiss(c.id) && <span className="tag want">lui manque</span>}{q > 1 && <span className="tag">double</span>}</> : (missing(c.id) && <span className="tag want">te manque</span>)}</span>

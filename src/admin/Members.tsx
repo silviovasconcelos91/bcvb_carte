@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { CONFIG } from '../config';
 import type { MemberStatus, Profile } from '../lib/types';
-import { fmtDuration, initial, intervalMs, sumValues } from '../lib/format';
+import { fmtDuration, freeBoosters, initial, intervalMs, sumValues } from '../lib/format';
 import { useRunner } from '../components/Toasts';
 import { nameOf, useAdmin } from './context';
 
@@ -9,7 +9,6 @@ export function MembersAdmin() {
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
   const released = d.cards.filter(c => c.is_released).length;
-  const cooldown = intervalMs(d.settings.free_booster_cooldown);
   // Comptes en attente en premier, puis ordre alphabétique (celui du chargement)
   const list = [...d.profiles].sort((a, b) => +(b.status === 'pending') - +(a.status === 'pending'));
   const setStatus = async (p: Profile, status: MemberStatus) => {
@@ -26,7 +25,7 @@ export function MembersAdmin() {
           {list.map(p => {
             const inv = d.owned.get(p.id) ?? new Map<number, number>();
             const distinct = [...inv.keys()].filter(id => d.cardById.get(id)?.is_released).length;
-            const wait = p.last_free_booster_at ? Date.parse(p.last_free_booster_at) + cooldown - Date.now() : 0;
+            const fb = freeBoosters(p.last_free_booster_at, d.settings);
             const isPending = p.status === 'pending';
             return (
               <tr key={p.id}>
@@ -34,11 +33,11 @@ export function MembersAdmin() {
                 <td><span className={`pill ${isPending ? 'warn' : 'ok'}`}>{isPending ? 'En attente' : 'Actif'}</span></td>
                 <td className="num">{sumValues(inv)}</td>
                 <td className="num">{distinct} / {released}</td>
-                <td>{wait > 0 ? `Dans ${fmtDuration(wait)}` : 'Disponible'}</td>
+                <td>{!fb.available ? `Dans ${fmtDuration(fb.nextIn)}` : fb.max > 1 ? `${fb.available} / ${fb.max} disponibles` : 'Disponible'}</td>
                 <td className="actions">
                   {isPending && <button className="btn small primary" onClick={() => void setStatus(p, 'active')}>Valider</button>}
-                  {!isPending && wait > 0 && (
-                    <button className="btn small" onClick={async () => { if (await run(() => api.resetFreeBooster(p.id), `Booster gratuit de ${nameOf(d, p.id)} débloqué`)) await refresh(); }}>Débloquer</button>
+                  {!isPending && fb.available < fb.max && (
+                    <button className="btn small" onClick={async () => { if (await run(() => api.resetFreeBooster(p.id), `Boosters gratuits de ${nameOf(d, p.id)} rechargés`)) await refresh(); }}>Recharger</button>
                   )}
                   {!isPending && p.id !== d.me?.id && <>{' '}<button className="btn small ghost" onClick={() => void setStatus(p, 'pending')}>Suspendre</button></>}
                 </td>
@@ -56,11 +55,12 @@ export function SettingsAdmin() {
   const run = useRunner();
   const [size, setSize] = useState(String(d.settings.booster_size));
   const [hours, setHours] = useState(String(Math.round(intervalMs(d.settings.free_booster_cooldown) / 36e5)));
+  const [stock, setStock] = useState(String(d.settings.free_booster_max ?? 1));
   const [busy, setBusy] = useState(false);
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: `${Math.max(1, +hours)} hours` };
+    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: `${Math.max(1, +hours)} hours`, free_booster_max: Math.max(1, Math.min(10, +stock)) };
     if (await run(() => api.saveSettings(st), 'Réglages enregistrés')) await refresh();
     setBusy(false);
   }
@@ -70,7 +70,8 @@ export function SettingsAdmin() {
       <form className="settings" onSubmit={save}>
         <label className="field"><span>Cartes par booster</span><input className="input narrow" type="number" min={1} max={20} value={size} onChange={e => setSize(e.target.value)} required /></label>
         <label className="field"><span>Délai entre deux boosters gratuits (heures)</span><input className="input narrow" type="number" min={1} max={720} value={hours} onChange={e => setHours(e.target.value)} required /></label>
-        <p className="muted">Le nouveau délai s'applique à partir du prochain booster ouvert par chaque membre.</p>
+        <label className="field"><span>Boosters gratuits cumulables</span><input className="input narrow" type="number" min={1} max={10} value={stock} onChange={e => setStock(e.target.value)} required /></label>
+        <p className="muted">Un booster se recharge à chaque délai. Un membre qui ne passe pas en garde jusqu'à ce nombre en réserve ; avec 1, le compteur s'arrête au premier booster. Les changements s'appliquent tout de suite.</p>
         <div><button className="btn primary" disabled={busy}>Enregistrer</button></div>
       </form>
       <SignupCode />

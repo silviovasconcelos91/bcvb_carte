@@ -21,7 +21,7 @@ export function CardDetail({ id, onClose }: { id: number; onClose: () => void })
         <div className="detail-card">{c.masked ? <CardBack /> : <CardView card={c} tilt size="full" />}</div>
         <div>
           <p className="detail-meta">
-            <span className={`rlabel ${rClass(c)}`}>{c.rarity_id ? <i /> : null}{rarText(L, c)}</span>
+            <span className={`rlabel ${rClass(L, c)}`}>{c.rarity_id ? <i /> : null}{rarText(L, c)}</span>
             <span>{set?.name}, carte {pad2(c.number)} sur {pad2(L.setCount.get(c.set_id))}</span>
           </p>
           {c.description && <p className="detail-desc">{c.description}</p>}

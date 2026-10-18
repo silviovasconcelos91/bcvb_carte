@@ -18,6 +18,18 @@ export function intervalMs(v: string | number | null | undefined): number {
   return ms || 864e5;
 }
 
+// Boosters gratuits, comme open_booster : un booster se recharge à chaque délai, jusqu'à `max` en réserve.
+// `clock` (last_free_booster_at) est l'horloge de recharge, null = stock plein.
+export function freeBoosters(clock: string | null, settings: { free_booster_cooldown: string; free_booster_max?: number }, now = Date.now()) {
+  const cd = intervalMs(settings.free_booster_cooldown);
+  const max = Math.max(1, settings.free_booster_max ?? 1);
+  const c = Math.max(clock ? Date.parse(clock) : -Infinity, now - max * cd);
+  const available = Math.min(max, Math.floor((now - c) / cd));
+  // Temps avant le prochain booster rechargé (0 si la réserve est pleine)
+  const nextIn = available < max ? c + (available + 1) * cd - now : 0;
+  return { available, max, nextIn };
+}
+
 export function fmtDuration(ms: number): string {
   const min = Math.max(1, Math.floor(ms / 6e4));
   const h = Math.floor(min / 60);

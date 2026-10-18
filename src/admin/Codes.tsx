@@ -160,7 +160,7 @@ function CardPicker({ value, onPick }: { value: number | null; onPick: (c: Card)
           <div key={set.id} role="group" aria-label={`Série ${set.name}`}>
             <p className="card-pick-set">{set.name}</p>
             {cards.map(c => (
-              <button key={c.id} type="button" className={`pick-row ${rClass(c)}${c.id === value ? ' is-on' : ''}`} aria-pressed={c.id === value} onClick={() => onPick(c)}>
+              <button key={c.id} type="button" className={`pick-row ${rClass(d.lookup, c)}${c.id === value ? ' is-on' : ''}`} aria-pressed={c.id === value} onClick={() => onPick(c)}>
                 <span className="chip-art"><MiniArt card={c} /></span>
                 <span className="pick-main">
                   <span className="pick-name">{c.name}{!c.is_released && <span className="tag warn">non publiée</span>}</span>

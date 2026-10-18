@@ -1,7 +1,7 @@
 import { Fragment, useState, type KeyboardEvent } from 'react';
 import type { Card } from '../lib/types';
 import { pad2, plural, sumValues } from '../lib/format';
-import { cardName, isSecret, rarText, rClass, rarityLabel, useLookup } from '../lib/lookup';
+import { cardName, isSecret, rarClass, rarText, rClass, rarityLabel, useLookup } from '../lib/lookup';
 import { CardView, Gems } from '../components/visuals';
 import { useGame } from './context';
 
@@ -67,7 +67,7 @@ export function CollectionView() {
           {SHOWS.map(([v, l]) => <button key={v} aria-pressed={show === v} onClick={() => setShow(v)}>{l}</button>)}
         </div>
         <div className="rchips" role="group" aria-label="Rareté">
-          {d.rarities.map(r => <button key={r.id} className={`rchip r${r.id}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
+          {d.rarities.map(r => <button key={r.id} className={`rchip ${rarClass(L, r.id)}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
         </div>
       </div>
       {!total ? (
@@ -106,7 +106,7 @@ export function CollectionView() {
     }
     // Carte non possédée : numéro et rareté seulement
     return (
-      <div className={`pocket ${rClass(card)}`} role="button" tabIndex={0} onClick={open} onKeyDown={keys}
+      <div className={`pocket ${rClass(L, card)}`} role="button" tabIndex={0} onClick={open} onKeyDown={keys}
         aria-label={`${cardName(card)}, ${rarText(L, card).toLowerCase()}, pas dans ta collection`}>
         <div className="slot">
           <span className="slot-num">{pad2(card.number)}</span>

@@ -2,12 +2,12 @@ import type { Card, CardSet, Rarity, Stats } from './types';
 
 // Données fictives du mode démo (aucun lien avec de vrais membres)
 export const DEMO_RARITIES: Rarity[] = [
-  { id: 1, code: 'common', label: 'Commune', weight: 60, is_secret: false },
-  { id: 2, code: 'uncommon', label: 'Peu commune', weight: 25, is_secret: false },
-  { id: 3, code: 'rare', label: 'Rare', weight: 10, is_secret: false },
-  { id: 4, code: 'ultra_rare', label: 'Ultra rare', weight: 4, is_secret: false },
-  { id: 5, code: 'legendary', label: 'Légendaire', weight: 1, is_secret: false },
-  { id: 6, code: 'secret', label: 'Secrète', weight: 0.5, is_secret: true },
+  { id: 1, code: 'common', label: 'Commune', weight: 60, is_secret: false, effect: 1, color: null },
+  { id: 2, code: 'uncommon', label: 'Peu commune', weight: 25, is_secret: false, effect: 2, color: null },
+  { id: 3, code: 'rare', label: 'Rare', weight: 10, is_secret: false, effect: 3, color: null },
+  { id: 4, code: 'ultra_rare', label: 'Ultra rare', weight: 4, is_secret: false, effect: 4, color: null },
+  { id: 5, code: 'legendary', label: 'Légendaire', weight: 1, is_secret: false, effect: 5, color: null },
+  { id: 6, code: 'secret', label: 'Secrète', weight: 0.5, is_secret: true, effect: 6, color: null },
 ];
 
 export const DEMO_SETS: CardSet[] = [

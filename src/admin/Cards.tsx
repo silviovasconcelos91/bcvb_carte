@@ -56,10 +56,10 @@ export function CardsAdmin() {
             const owners = d.owners.get(c.id) ?? 0;
             return (
               <tr key={c.id}>
-                <td><span className="cell-card"><span className={`chip-art ${rClass(c)}`}><MiniArt card={c} /></span><span className="cell-text"><strong>{c.name}</strong><span className="muted">{c.subtitle}</span></span></span></td>
+                <td><span className="cell-card"><span className={`chip-art ${rClass(d.lookup, c)}`}><MiniArt card={c} /></span><span className="cell-text"><strong>{c.name}</strong><span className="muted">{c.subtitle}</span></span></span></td>
                 <td>{d.lookup.setById.get(c.set_id)?.name}</td>
                 <td className="num">{pad2(c.number)}</td>
-                <td><span className={`rlabel r${c.rarity_id}`}><i />{rarityLabel(d.lookup, c.rarity_id)}</span></td>
+                <td><span className={`rlabel ${rClass(d.lookup, c)}`}><i />{rarityLabel(d.lookup, c.rarity_id)}</span></td>
                 <td><span className="pills">
                   {c.is_released ? <span className="pill ok">Publiée</span> : <span className="pill warn">En préparation</span>}
                   {c.is_released && c.in_boosters === false && <span className="pill">Hors boosters</span>}
