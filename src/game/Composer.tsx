@@ -58,9 +58,11 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
   function pickList(owner: string, sel: Map<number, number>, kind: 'give' | 'want') {
     const inv = d.owned.get(owner) ?? new Map<number, number>();
     const missing = (id: number) => !d.mine.get(id);
+    const theirs = to ? d.owned.get(to) : undefined;
+    const theyMiss = (id: number) => !theirs?.get(id);
     const rows = [...inv.entries()].map(([cid, q]) => ({ c: d.cardById.get(cid)!, q })).filter(x => x.c);
     rows.sort(kind === 'give'
-      ? (a, b) => Number(b.q > 1) - Number(a.q > 1) || (a.c.rarity_id ?? 9) - (b.c.rarity_id ?? 9) || cardName(a.c).localeCompare(cardName(b.c), 'fr')
+      ? (a, b) => Number(theyMiss(b.c.id)) - Number(theyMiss(a.c.id)) || Number(b.q > 1) - Number(a.q > 1) || (a.c.rarity_id ?? 9) - (b.c.rarity_id ?? 9) || cardName(a.c).localeCompare(cardName(b.c), 'fr')
       : (a, b) => Number(missing(b.c.id)) - Number(missing(a.c.id)) || (b.c.rarity_id ?? 9) - (a.c.rarity_id ?? 9) || cardName(a.c).localeCompare(cardName(b.c), 'fr'));
     if (!rows.length) {
       return <p className="pick-empty muted">{kind === 'give' ? "Tu n'as pas encore de carte à donner. Tu peux quand même en demander une." : "Ce membre n'a pas encore de carte."}</p>;
@@ -74,7 +76,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
             <li key={c.id} className={`pick-row ${rClass(c)}${n ? ' is-on' : ''}`}>
               <span className="chip-art"><MiniArt card={c} /></span>
               <span className="pick-main">
-                <span className="pick-name">{cardName(c)}{kind === 'give' ? (q > 1 && <span className="tag">double</span>) : (missing(c.id) && <span className="tag want">te manque</span>)}</span>
+                <span className="pick-name">{cardName(c)}{kind === 'give' ? <>{theyMiss(c.id) && <span className="tag want">lui manque</span>}{q > 1 && <span className="tag">double</span>}</> : (missing(c.id) && <span className="tag want">te manque</span>)}</span>
                 <span className="pick-meta">{rarText(L, c)}, {holder} {q}</span>
               </span>
               <span className="stepper">
@@ -99,12 +101,14 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
             {d.profiles.filter(p => p.id !== uid).map(p => {
               const theirs = d.owned.get(p.id) ?? new Map<number, number>();
               const useful = [...theirs.keys()].filter(cid => !d.mine.get(cid)).length;
+              const offer = [...d.mine.keys()].filter(cid => d.mine.get(cid) && !theirs.get(cid)).length;
               return (
                 <li key={p.id}>
                   <button className="pick" onClick={() => { setTo(p.id); setGive(new Map()); setWant(new Map()); }}>
                     <span className="avatar" aria-hidden="true">{initial(p.username)}</span>
                     <span className="pick-main"><span className="pick-name">{p.username}</span>
-                      <span className="pick-meta">{plural(sumValues(theirs), 'carte', 'cartes')}{useful ? `, dont ${useful} qui te ${useful > 1 ? 'manquent' : 'manque'}` : ''}</span></span>
+                      <span className="pick-meta">{plural(sumValues(theirs), 'carte', 'cartes')}{useful ? `, dont ${useful} qui te ${useful > 1 ? 'manquent' : 'manque'}` : ''}
+                        {offer ? ` · tu en as ${offer} qui lui ${offer > 1 ? 'manquent' : 'manque'}` : ''}</span></span>
                   </button>
                 </li>
               );
