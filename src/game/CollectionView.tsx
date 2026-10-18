@@ -7,6 +7,8 @@ import { useGame } from './context';
 
 type Show = 'all' | 'owned' | 'missing' | 'dups';
 const SHOWS: [Show, string][] = [['all', 'Toutes'], ['owned', 'Possédées'], ['missing', 'Manquantes'], ['dups', 'Doublons']];
+type Sort = 'number' | 'rare' | 'common';
+const SORTS: [Sort, string][] = [['number', 'Trier par numéro'], ['rare', 'Plus rares d’abord'], ['common', 'Plus communes d’abord']];
 
 export function CollectionView() {
   const { d, openCard, setTab } = useGame();
@@ -14,6 +16,7 @@ export function CollectionView() {
   const [set, setSet] = useState('all');
   const [show, setShow] = useState<Show>('all');
   const [rar, setRar] = useState<Set<number>>(new Set());
+  const [sort, setSort] = useState<Sort>('number');
   const mine = d.mine;
   // Les cartes secrètes possédées comptent dans le score, jamais dans le total
   const distinct = d.cards.filter(c => mine.get(c.id)).length;
@@ -27,6 +30,15 @@ export function CollectionView() {
   if (show === 'owned') list = list.filter(c => mine.get(c.id));
   if (show === 'missing') list = list.filter(c => !mine.get(c.id));
   if (show === 'dups') list = list.filter(c => (mine.get(c.id) ?? 0) > 1);
+  // Tri par rareté à l'intérieur de chaque série : moins une rareté tombe souvent, plus elle est rare.
+  // Les cartes de rareté inconnue restent à la fin, le numéro départage les égalités.
+  if (sort !== 'number') {
+    const rank = (c: Card) => (c.rarity_id != null ? L.rarityById.get(c.rarity_id)?.weight ?? Infinity : Infinity);
+    const dir = sort === 'rare' ? 1 : -1;
+    list = [...list].sort((a, b) => a.set_id - b.set_id
+      || (rank(a) === rank(b) ? 0 : !isFinite(rank(a)) ? 1 : !isFinite(rank(b)) ? -1 : (rank(a) - rank(b)) * dir)
+      || (a.number ?? 0) - (b.number ?? 0));
+  }
   const multi = new Set(list.map(c => c.set_id)).size > 1;
 
   const toggleRar = (id: number) => setRar(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -44,6 +56,11 @@ export function CollectionView() {
           <select className="select" value={set} onChange={e => setSet(e.target.value)} aria-label="Série">
             <option value="all">Toutes les séries</option>
             {d.sets.filter(s => d.cards.some(c => c.set_id === s.id)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </span>
+        <span className="select-wrap">
+          <select className="select" value={sort} onChange={e => setSort(e.target.value as Sort)} aria-label="Trier">
+            {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </span>
         <div className="seg" role="group" aria-label="Afficher">
