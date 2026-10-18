@@ -1,21 +1,32 @@
 -- =====================================================================
---  Cartes du club : schéma Supabase (PostgreSQL)
+--  Cartes du club : toute la logique SQL (Supabase / PostgreSQL)
 --
---  À exécuter une seule fois sur un projet neuf : Supabase > SQL Editor.
+--  Script complet et rejouable, à exécuter dans Supabase > SQL Editor :
+--    - sur un projet neuf, il installe tout ;
+--    - sur une base existante, quelle que soit sa version précédente,
+--      il la met à niveau sans toucher aux données (comptes, cartes,
+--      collections, échanges, codes) ;
+--    - relancé une deuxième fois, il ne change rien.
 --
---  Principe : le navigateur ne fait que LIRE les tables. Toutes les
---  écritures passent par des fonctions appelées en RPC, qui vérifient
---  les règles côté base, dans une seule transaction :
---    open_booster, create_trade, accept_trade, decline_trade, cancel_trade
---  Seule exception : un membre peut modifier son propre pseudo.
+--  Ce qu'il met en place :
+--    - catalogue (séries, raretés, cartes, photos), collections, échanges ;
+--    - boosters gratuits et codes (booster, N cartes, carte précise) ;
+--    - cartes cachées : on ne lit en entier que les cartes qu'on possède ;
+--      les cartes secrètes qu'on n'a pas n'existent pas pour soi ;
+--    - inscriptions depuis le site, actives avec le code du club,
+--      sinon en attente de validation ;
+--    - console d'administration (table admins).
 --
---  Cartes cachées : un membre ne peut lire en entier (nom, description,
---  stats, photo) que les cartes qu'il a déjà obtenues au moins une fois.
---  Pour les autres, card_catalog() ne donne que la série, le numéro et
---  la rareté, et même pas la rareté si elle est secrète.
+--  Principe de sécurité : le navigateur ne fait que LIRE les tables.
+--  Toutes les écritures passent par des fonctions (RPC) qui vérifient
+--  les règles côté base : open_booster, create_trade, accept_trade,
+--  decline_trade, cancel_trade. Un membre peut seulement modifier son
+--  pseudo. Les administrateurs ont des droits d'écriture sur le catalogue.
 --
---  Administration : la console admin.html (réservée aux comptes listés
---  dans la table admins), ou le Table Editor du dashboard.
+--  Réglages à faire dans Supabase (Authentication) :
+--    - autoriser les nouvelles inscriptions ;
+--    - désactiver la confirmation par e-mail ;
+--    - mots de passe de 8 caractères minimum.
 -- =====================================================================
 
 
@@ -23,21 +34,22 @@
 -- 1. Tables
 -- ---------------------------------------------------------------------
 
-create table public.profiles (
+create table if not exists public.profiles (
   id                   uuid primary key references auth.users (id) on delete cascade,
   username             text not null check (char_length(username) between 2 and 30),
+  status               text not null default 'active' check (status in ('active', 'pending')),
   last_free_booster_at timestamptz,
   created_at           timestamptz not null default now()
 );
 
 -- Réglages du jeu : une seule ligne, à modifier dans le Table Editor
-create table public.game_settings (
+create table if not exists public.game_settings (
   id                    boolean primary key default true check (id),
   booster_size          int not null default 5 check (booster_size between 1 and 20),
   free_booster_cooldown interval not null default interval '1 day'
 );
 
-create table public.rarities (
+create table if not exists public.rarities (
   id     smallint primary key,                    -- 1 = la plus commune
   code   text not null unique,
   label  text not null,
@@ -46,21 +58,22 @@ create table public.rarities (
 );
 
 -- Séries / extensions : "Saison 2026-27", "Tournoi de Noël"...
-create table public.card_sets (
+create table if not exists public.card_sets (
   id          int generated always as identity primary key,
   name        text not null unique,
   in_boosters boolean not null default true,       -- false = ne tombe plus dans les boosters standards
   created_at  timestamptz not null default now()
 );
 
-create table public.cards (
+create table if not exists public.cards (
   id          bigint generated always as identity primary key,
   set_id      int not null references public.card_sets (id),
   number      int,                                 -- numéro dans la série ("12/40")
   name        text not null,
   subtitle    text,                                -- poste ("Passeuse") ou type ("Moment")
   description text,
-  image_path  text,                                -- chemin dans le bucket "card-images"
+  image_path  text,                                -- chemin de la photo (720 px) dans le bucket "card-images"
+  thumb_path  text,                                -- chemin de la vignette (240 px) ; null = on affiche la photo
   rarity_id   smallint not null references public.rarities (id),
   stats       jsonb not null default '{}'::jsonb,  -- ex. {"service": 7, "attaque": 8}
   is_released boolean not null default false,      -- false = en préparation : invisible et jamais tirée
@@ -70,28 +83,35 @@ create table public.cards (
 );
 
 -- Collection : une ligne par (joueur, carte), avec le nombre d'exemplaires
-create table public.user_cards (
+create table if not exists public.user_cards (
   user_id           uuid not null references public.profiles (id) on delete cascade,
   card_id           bigint not null references public.cards (id),
   quantity          int not null check (quantity > 0),
   first_obtained_at timestamptz not null default now(),
   primary key (user_id, card_id)
 );
-create index user_cards_card_idx on public.user_cards (card_id);
+create index if not exists user_cards_card_idx on public.user_cards (card_id);
 
 -- Cartes déjà obtenues au moins une fois (elles restent connues même après un échange)
-create table public.card_discoveries (
+create table if not exists public.card_discoveries (
   user_id       uuid not null references public.profiles (id) on delete cascade,
   card_id       bigint not null references public.cards (id) on delete cascade,
   discovered_at timestamptz not null default now(),
   primary key (user_id, card_id)
 );
 
-create type public.trade_status as enum ('pending', 'accepted', 'declined', 'cancelled', 'failed');
--- offer = carte donnée par celui qui propose ; request = carte donnée par le destinataire
-create type public.trade_side as enum ('offer', 'request');
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'trade_status' and typnamespace = 'public'::regnamespace) then
+    create type public.trade_status as enum ('pending', 'accepted', 'declined', 'cancelled', 'failed');
+  end if;
+  if not exists (select 1 from pg_type where typname = 'trade_side' and typnamespace = 'public'::regnamespace) then
+    create type public.trade_side as enum ('offer', 'request');
+  end if;
+end $$;
+-- (trade_side : offer = carte donnée par celui qui propose ; request = carte donnée par le destinataire)
 
-create table public.trades (
+create table if not exists public.trades (
   id           bigint generated always as identity primary key,
   proposer_id  uuid not null references public.profiles (id) on delete cascade,
   recipient_id uuid not null references public.profiles (id) on delete cascade,
@@ -101,10 +121,10 @@ create table public.trades (
   resolved_at  timestamptz,
   check (proposer_id <> recipient_id)
 );
-create index trades_proposer_idx on public.trades (proposer_id, status);
-create index trades_recipient_idx on public.trades (recipient_id, status);
+create index if not exists trades_proposer_idx on public.trades (proposer_id, status);
+create index if not exists trades_recipient_idx on public.trades (recipient_id, status);
 
-create table public.trade_items (
+create table if not exists public.trade_items (
   trade_id bigint not null references public.trades (id) on delete cascade,
   side     public.trade_side not null,
   card_id  bigint not null references public.cards (id),
@@ -112,20 +132,26 @@ create table public.trade_items (
   primary key (trade_id, side, card_id)
 );
 
--- Codes à scanner (QR au gymnase, tournoi...) : un booster par personne et par code
-create table public.booster_codes (
+-- Codes à scanner (QR au gymnase, tournoi...) : un booster par personne et par code,
+-- éventuellement limité à une série et à un nombre de cartes (une seule carte, par exemple),
+-- ou une carte précise (la carte de la soirée du club pour les présents)
+create table if not exists public.booster_codes (
   id         bigint generated always as identity primary key,
   code       text not null,                        -- insensible à la casse
   label      text,                                 -- ex. "Match à domicile du 14/11"
   set_id     int references public.card_sets (id), -- null = tirage standard, sinon cette série uniquement
+  card_count int check (card_count between 1 and 20), -- null = taille normale d'un booster (réglages)
+  card_id    bigint references public.cards (id) on delete cascade, -- carte précise offerte (soirée du club...)
   max_uses   int check (max_uses > 0),             -- null = pas de limite globale
   uses_count int not null default 0,
   expires_at timestamptz,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- un code « carte précise » donne cette carte et rien d'autre
+  constraint booster_codes_card_only check (card_id is null or (set_id is null and card_count is null))
 );
-create unique index booster_codes_code_idx on public.booster_codes (upper(code));
+create unique index if not exists booster_codes_code_idx on public.booster_codes (upper(code));
 
-create table public.booster_code_redemptions (
+create table if not exists public.booster_code_redemptions (
   code_id     bigint not null references public.booster_codes (id) on delete cascade,
   user_id     uuid not null references public.profiles (id) on delete cascade,
   redeemed_at timestamptz not null default now(),
@@ -133,40 +159,95 @@ create table public.booster_code_redemptions (
 );
 
 -- Historique des ouvertures (débogage, fil "derniers tirages"...)
-create table public.booster_openings (
+create table if not exists public.booster_openings (
   id        bigint generated always as identity primary key,
   user_id   uuid not null references public.profiles (id) on delete cascade,
   code_id   bigint references public.booster_codes (id) on delete set null,
   card_ids  bigint[] not null,
   opened_at timestamptz not null default now()
 );
-create index booster_openings_user_idx on public.booster_openings (user_id, opened_at desc);
+create index if not exists booster_openings_user_idx on public.booster_openings (user_id, opened_at desc);
+
+
+-- ---------------------------------------------------------------------
+-- 1 bis. Mise à niveau des bases créées avec une version précédente
+--        (sans effet sur une base neuve)
+-- ---------------------------------------------------------------------
+
+alter table public.profiles      add column if not exists status text not null default 'active' check (status in ('active', 'pending'));
+alter table public.rarities      add column if not exists is_secret boolean not null default false;
+alter table public.cards         add column if not exists thumb_path text;
+alter table public.cards         add column if not exists in_boosters boolean not null default true;
+alter table public.booster_codes add column if not exists card_count int check (card_count between 1 and 20);
+alter table public.booster_codes add column if not exists card_id bigint references public.cards (id) on delete cascade;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'booster_codes_card_only') then
+    alter table public.booster_codes add constraint booster_codes_card_only
+      check (card_id is null or (set_id is null and card_count is null));
+  end if;
+end $$;
+
+-- Cartes déjà obtenues avant l'existence de card_discoveries (badge « Nouvelle »)
+insert into public.card_discoveries (user_id, card_id)
+select user_id, card_id from public.user_cards
+on conflict do nothing;
+insert into public.card_discoveries (user_id, card_id)
+select distinct o.user_id, x.card_id
+from public.booster_openings o
+cross join lateral unnest(o.card_ids) as x(card_id)
+join public.cards c on c.id = x.card_id
+on conflict do nothing;
+insert into public.card_discoveries (user_id, card_id)
+select distinct case ti.side when 'offer' then t.recipient_id else t.proposer_id end, ti.card_id
+from public.trades t
+join public.trade_items ti on ti.trade_id = t.id
+where t.status = 'accepted'
+on conflict do nothing;
 
 
 -- ---------------------------------------------------------------------
 -- 2. Profil créé automatiquement à l'inscription ou à l'invitation
+--    (actif ou en attente selon le code du club, voir la section 8)
 -- ---------------------------------------------------------------------
 
-create function public.handle_new_user()
+create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer set search_path = ''
 as $$
 declare
-  v_name text := coalesce(
+  v_name     text := coalesce(
     nullif(btrim(new.raw_user_meta_data ->> 'username'), ''),
     split_part(coalesce(new.email, ''), '@', 1)
   );
+  v_code     text := nullif(btrim(new.raw_user_meta_data ->> 'signup_code'), '');
+  v_expected text;
+  v_status   text := 'pending';
 begin
   if char_length(v_name) < 2 then
     v_name := 'Joueur ' || left(new.id::text, 4);
   end if;
-  insert into public.profiles (id, username) values (new.id, left(v_name, 30));
+  -- Actif d'office : compte créé par un administrateur (app_metadata, que
+  -- l'utilisateur ne peut pas modifier) ou inscription avec le bon code du club.
+  -- Sinon, le compte attend la validation d'un administrateur.
+  select nullif(btrim(code), '') into v_expected from public.signup_settings where id;
+  if new.raw_app_meta_data ->> 'invited' = 'true'
+     or (v_expected is not null and upper(v_code) = upper(v_expected)) then
+    v_status := 'active';
+  end if;
+  insert into public.profiles (id, username, status) values (new.id, left(v_name, 30), v_status);
   return new;
 end $$;
 
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
+-- Créé une seule fois : la table auth.users appartient à Supabase Auth, on n'y supprime rien
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'on_auth_user_created' and tgrelid = 'auth.users'::regclass) then
+    create trigger on_auth_user_created
+      after insert on auth.users
+      for each row execute function public.handle_new_user();
+  end if;
+end $$;
 
 
 -- ---------------------------------------------------------------------
@@ -176,7 +257,7 @@ create trigger on_auth_user_created
 create schema if not exists private;
 
 -- Ajoute des exemplaires ; renvoie true si le joueur découvre cette carte pour la première fois
-create function private.add_cards(p_user uuid, p_card bigint, p_qty int)
+create or replace function private.add_cards(p_user uuid, p_card bigint, p_qty int)
 returns boolean
 language plpgsql set search_path = ''
 as $$
@@ -194,7 +275,7 @@ begin
 end $$;
 
 -- Retire des exemplaires ; renvoie false si le joueur n'en a pas assez
-create function private.remove_cards(p_user uuid, p_card bigint, p_qty int)
+create or replace function private.remove_cards(p_user uuid, p_card bigint, p_qty int)
 returns boolean
 language plpgsql set search_path = ''
 as $$
@@ -212,7 +293,7 @@ end $$;
 -- Tire une carte : une rareté selon les poids, puis une carte au hasard dans cette rareté.
 -- Une rareté sans carte disponible est ignorée (son poids se répartit sur les autres).
 -- p_set_id null = boosters standards (séries in_boosters), sinon uniquement cette série.
-create function private.draw_card(p_set_id int)
+create or replace function private.draw_card(p_set_id int)
 returns bigint
 language plpgsql volatile set search_path = ''
 as $$
@@ -259,28 +340,40 @@ end $$;
 --    (comme un compte de service), d'où la vérification de auth.uid().
 -- ---------------------------------------------------------------------
 
--- Catalogue de toutes les cartes publiées, sans rien révéler des cartes jamais obtenues :
--- série, numéro et rareté seulement (rareté à null si elle est secrète).
--- Le détail des cartes découvertes se lit dans la table cards.
-create function public.card_catalog()
-returns table (id bigint, set_id int, number int, rarity_id smallint, discovered boolean)
+-- Catalogue des cartes publiées, sans rien révéler des cartes qu'on n'a pas :
+-- série, numéro et rareté seulement. Les cartes secrètes qu'on n'a pas
+-- n'y figurent pas du tout. Le détail des cartes possédées vient de my_cards().
+drop function if exists public.card_catalog();  -- sa forme a changé au fil des versions
+create or replace function public.card_catalog()
+returns table (id bigint, set_id int, number int, rarity_id smallint, owned boolean)
 language sql stable security definer set search_path = ''
 as $$
-  select c.id,
-         c.set_id,
-         c.number,
-         case when d.card_id is not null or not r.is_secret then c.rarity_id end,
-         d.card_id is not null
+  select c.id, c.set_id, c.number, c.rarity_id, uc.card_id is not null
   from public.cards c
   join public.rarities r on r.id = c.rarity_id
-  left join public.card_discoveries d on d.card_id = c.id and d.user_id = auth.uid()
+  left join public.user_cards uc on uc.card_id = c.id and uc.user_id = auth.uid()
+  where c.is_released
+    and (not r.is_secret or uc.card_id is not null)
+    and exists (select 1 from public.profiles p where p.id = auth.uid() and p.status = 'active')
+  order by c.set_id, c.number, c.id;
+$$;
+
+-- Détail complet (nom, description, stats, photos) des cartes que l'on possède,
+-- et d'elles seules, y compris pour un administrateur qui joue.
+create or replace function public.my_cards()
+returns setof public.cards
+language sql stable security definer set search_path = ''
+as $$
+  select c.*
+  from public.cards c
+  join public.user_cards uc on uc.card_id = c.id and uc.user_id = auth.uid()
   where c.is_released
   order by c.set_id, c.number, c.id;
 $$;
 
 -- Ouvre un booster gratuit (selon le délai des réglages) ou via un code.
 -- Renvoie [{card_id, name, rarity_id, image_path, is_new}, ...]
-create function public.open_booster(p_code text default null)
+create or replace function public.open_booster(p_code text default null)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -338,8 +431,20 @@ begin
     update public.booster_codes set uses_count = uses_count + 1 where id = v_code.id;
   end if;
 
-  for i in 1 .. v_settings.booster_size loop
-    v_card_id := private.draw_card(v_code.set_id);
+  -- Code « carte précise » : elle doit être publiée (les membres la verront dans leur collection)
+  if v_code.card_id is not null
+     and not exists (select 1 from public.cards where id = v_code.card_id and is_released) then
+    raise exception 'La carte de ce code n''est pas encore disponible';
+  end if;
+
+  -- Un code peut donner une carte précise, ou moins (ou plus) de cartes qu'un booster normal
+  for i in 1 .. case when v_code.card_id is not null then 1
+                     else coalesce(v_code.card_count, v_settings.booster_size) end loop
+    if v_code.card_id is not null then
+      v_card_id := v_code.card_id;
+    else
+      v_card_id := private.draw_card(v_code.set_id);
+    end if;
     v_is_new  := private.add_cards(v_uid, v_card_id, 1);
     select * into v_card from public.cards where id = v_card_id;
     v_ids    := v_ids || v_card_id;
@@ -361,7 +466,7 @@ end $$;
 -- Propose un échange. p_offer : cartes que tu donnes ; p_request : cartes que tu demandes.
 -- Format : [{"card_id": 12, "quantity": 1}, ...] (quantity facultative, 1 par défaut).
 -- Un des deux tableaux peut être vide : p_request vide = un don.
-create function public.create_trade(
+create or replace function public.create_trade(
   p_recipient uuid,
   p_offer     jsonb default '[]'::jsonb,
   p_request   jsonb default '[]'::jsonb,
@@ -432,7 +537,7 @@ end $$;
 
 -- Accepte un échange (destinataire uniquement). Renvoie 'accepted', ou 'failed'
 -- si l'un des deux n'a plus les cartes : dans ce cas rien n'est transféré.
-create function public.accept_trade(p_trade_id bigint)
+create or replace function public.accept_trade(p_trade_id bigint)
 returns public.trade_status
 language plpgsql security definer set search_path = ''
 as $$
@@ -497,7 +602,7 @@ begin
 end $$;
 
 -- Refuse un échange (destinataire uniquement)
-create function public.decline_trade(p_trade_id bigint)
+create or replace function public.decline_trade(p_trade_id bigint)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -510,7 +615,7 @@ begin
 end $$;
 
 -- Annule sa propre proposition
-create function public.cancel_trade(p_trade_id bigint)
+create or replace function public.cancel_trade(p_trade_id bigint)
 returns void
 language plpgsql security definer set search_path = ''
 as $$
@@ -526,6 +631,26 @@ end $$;
 -- ---------------------------------------------------------------------
 -- 5. Droits et Row Level Security
 -- ---------------------------------------------------------------------
+
+-- Fonctions utilisées par les règles d'accès. Elles sont dans un schéma
+-- que l'API n'expose pas : on ne peut pas les appeler depuis le site.
+create schema if not exists rls;
+grant usage on schema rls to authenticated;
+
+-- Vrai si la carte est secrète et que l'utilisateur connecté ne l'a pas
+create or replace function rls.card_hidden(p_card bigint)
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (
+           select 1 from public.cards c join public.rarities r on r.id = c.rarity_id
+           where c.id = p_card and r.is_secret)
+     and not exists (
+           select 1 from public.user_cards
+           where user_id = auth.uid() and card_id = p_card);
+$$;
+revoke execute on function rls.card_hidden(bigint) from public, anon;
+grant execute on function rls.card_hidden(bigint) to authenticated;
 
 -- Supabase donne par défaut tous les droits aux rôles de l'API : on repart de zéro.
 revoke all on
@@ -555,31 +680,46 @@ alter table public.booster_codes            enable row level security;
 alter table public.booster_code_redemptions enable row level security;
 alter table public.booster_openings         enable row level security;
 
-create policy "Membres : lire les profils" on public.profiles
-  for select to authenticated using (true);
+-- Règles des versions précédentes, remplacées par celles de ce script
+drop policy if exists "Membres : lire les cartes publiées" on public.cards;
+drop policy if exists "Membres : lire les cartes découvertes" on public.cards;
+drop policy if exists "Membres : lire toutes les collections" on public.user_cards;
+drop policy if exists "Membres : voir les images des cartes publiées" on storage.objects;
+drop policy if exists "Membres : voir les images des cartes découvertes" on storage.objects;
+
+-- « Membres : lire les profils » : voir la section 8 (dépend du statut du compte)
+drop policy if exists "Membres : modifier son pseudo" on public.profiles;
 create policy "Membres : modifier son pseudo" on public.profiles
   for update to authenticated
   using (id = (select auth.uid())) with check (id = (select auth.uid()));
+drop policy if exists "Membres : lire les réglages" on public.game_settings;
 create policy "Membres : lire les réglages" on public.game_settings
   for select to authenticated using (true);
+drop policy if exists "Membres : lire les raretés" on public.rarities;
 create policy "Membres : lire les raretés" on public.rarities
   for select to authenticated using (true);
+drop policy if exists "Membres : lire les séries" on public.card_sets;
 create policy "Membres : lire les séries" on public.card_sets
   for select to authenticated using (true);
-create policy "Membres : lire les cartes découvertes" on public.cards
+drop policy if exists "Membres : lire les cartes possédées" on public.cards;
+create policy "Membres : lire les cartes possédées" on public.cards
   for select to authenticated
   using (
     is_released
-    and exists (select 1 from public.card_discoveries d
-                where d.card_id = cards.id and d.user_id = (select auth.uid()))
+    and exists (select 1 from public.user_cards uc
+                where uc.card_id = cards.id and uc.user_id = (select auth.uid()))
   );
+drop policy if exists "Membres : lire ses découvertes" on public.card_discoveries;
 create policy "Membres : lire ses découvertes" on public.card_discoveries
   for select to authenticated using (user_id = (select auth.uid()));
-create policy "Membres : lire toutes les collections" on public.user_cards
-  for select to authenticated using (true);
+-- Les collections des autres sont visibles (pour les échanges), sauf leurs
+-- cartes secrètes tant qu'on ne les a pas soi-même.
+-- « Membres : lire les collections » : voir la section 8 (dépend du statut du compte)
+drop policy if exists "Participants : lire leurs échanges" on public.trades;
 create policy "Participants : lire leurs échanges" on public.trades
   for select to authenticated
   using ((select auth.uid()) in (proposer_id, recipient_id));
+drop policy if exists "Participants : lire le contenu de leurs échanges" on public.trade_items;
 create policy "Participants : lire le contenu de leurs échanges" on public.trade_items
   for select to authenticated
   using (exists (
@@ -587,12 +727,14 @@ create policy "Participants : lire le contenu de leurs échanges" on public.trad
     where t.id = trade_id
       and (select auth.uid()) in (t.proposer_id, t.recipient_id)
   ));
+drop policy if exists "Membres : lire ses ouvertures de boosters" on public.booster_openings;
 create policy "Membres : lire ses ouvertures de boosters" on public.booster_openings
   for select to authenticated using (user_id = (select auth.uid()));
 -- booster_codes et booster_code_redemptions : aucune policy, donc invisibles depuis le front.
 
 revoke execute on function
   public.card_catalog(),
+  public.my_cards(),
   public.open_booster(text),
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
@@ -602,6 +744,7 @@ from public, anon;
 
 grant execute on function
   public.card_catalog(),
+  public.my_cards(),
   public.open_booster(text),
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
@@ -612,7 +755,7 @@ to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 6. Photos des cartes : bucket privé. Un membre connecté ne peut lire
---    que les images des cartes qu'il a déjà découvertes.
+--    que la photo et la vignette des cartes qu'il possède.
 --    Upload depuis le dashboard (Storage) ; côté front : createSignedUrls.
 -- ---------------------------------------------------------------------
 
@@ -620,15 +763,16 @@ insert into storage.buckets (id, name, public)
 values ('card-images', 'card-images', false)
 on conflict (id) do nothing;
 
-create policy "Membres : voir les images des cartes découvertes" on storage.objects
+drop policy if exists "Membres : voir les images des cartes possédées" on storage.objects;
+create policy "Membres : voir les images des cartes possédées" on storage.objects
   for select to authenticated
   using (
     bucket_id = 'card-images'
     and exists (
       select 1
       from public.cards c
-      join public.card_discoveries d on d.card_id = c.id and d.user_id = (select auth.uid())
-      where c.image_path = objects.name and c.is_released
+      join public.user_cards uc on uc.card_id = c.id and uc.user_id = (select auth.uid())
+      where objects.name in (c.image_path, c.thumb_path) and c.is_released
     )
   );
 
@@ -684,32 +828,32 @@ create policy "Admin : lire les admins" on public.admins
   for select to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : lire toutes les cartes" on public.cards;
-drop policy if exists "Admin : créer des cartes" on public.cards;
-drop policy if exists "Admin : modifier les cartes" on public.cards;
-drop policy if exists "Admin : supprimer des cartes" on public.cards;
 create policy "Admin : lire toutes les cartes" on public.cards
   for select to authenticated using ((select public.is_admin()));
+drop policy if exists "Admin : créer des cartes" on public.cards;
 create policy "Admin : créer des cartes" on public.cards
   for insert to authenticated with check ((select public.is_admin()));
+drop policy if exists "Admin : modifier les cartes" on public.cards;
 create policy "Admin : modifier les cartes" on public.cards
   for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "Admin : supprimer des cartes" on public.cards;
 create policy "Admin : supprimer des cartes" on public.cards
   for delete to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : créer des séries" on public.card_sets;
-drop policy if exists "Admin : modifier les séries" on public.card_sets;
-drop policy if exists "Admin : supprimer des séries" on public.card_sets;
 create policy "Admin : créer des séries" on public.card_sets
   for insert to authenticated with check ((select public.is_admin()));
+drop policy if exists "Admin : modifier les séries" on public.card_sets;
 create policy "Admin : modifier les séries" on public.card_sets
   for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "Admin : supprimer des séries" on public.card_sets;
 create policy "Admin : supprimer des séries" on public.card_sets
   for delete to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : créer des raretés" on public.rarities;
-drop policy if exists "Admin : modifier les raretés" on public.rarities;
 create policy "Admin : créer des raretés" on public.rarities
   for insert to authenticated with check ((select public.is_admin()));
+drop policy if exists "Admin : modifier les raretés" on public.rarities;
 create policy "Admin : modifier les raretés" on public.rarities
   for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
 
@@ -730,10 +874,14 @@ create policy "Admin : lire toutes les ouvertures" on public.booster_openings
   for select to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : lire tous les échanges" on public.trades;
-drop policy if exists "Admin : lire le contenu de tous les échanges" on public.trade_items;
 create policy "Admin : lire tous les échanges" on public.trades
   for select to authenticated using ((select public.is_admin()));
+drop policy if exists "Admin : lire le contenu de tous les échanges" on public.trade_items;
 create policy "Admin : lire le contenu de tous les échanges" on public.trade_items
+  for select to authenticated using ((select public.is_admin()));
+
+drop policy if exists "Admin : lire toutes les collections" on public.user_cards;
+create policy "Admin : lire toutes les collections" on public.user_cards
   for select to authenticated using ((select public.is_admin()));
 
 drop policy if exists "Admin : lire toutes les découvertes" on public.card_discoveries;
@@ -747,10 +895,110 @@ create policy "Admin : gérer les images des cartes" on storage.objects
   with check (bucket_id = 'card-images' and (select public.is_admin()));
 
 -- ---------------------------------------------------------------------
--- 8. Données de départ
+-- 8. Inscriptions libres, filtrées par un code du club
+--    Un compte créé avec le bon code est actif tout de suite. Sans code,
+--    ou avec un mauvais, il est créé « en attente » : il ne voit rien du
+--    jeu tant qu'un administrateur ne l'a pas validé dans la console.
 -- ---------------------------------------------------------------------
 
-insert into public.game_settings default values;
+-- Code d'inscription : une seule ligne, lisible et modifiable par les admins seuls.
+-- null ou vide = aucune activation automatique, tous les nouveaux comptes attendent.
+create table if not exists public.signup_settings (
+  id   boolean primary key default true check (id),
+  code text check (code is null or char_length(btrim(code)) between 4 and 40)
+);
+insert into public.signup_settings default values on conflict (id) do nothing;
+alter table public.signup_settings enable row level security;
+revoke all on public.signup_settings from anon, authenticated;
+grant select, update on public.signup_settings to authenticated;
+drop policy if exists "Admin : lire le code d'inscription" on public.signup_settings;
+create policy "Admin : lire le code d'inscription" on public.signup_settings
+  for select to authenticated using ((select public.is_admin()));
+drop policy if exists "Admin : modifier le code d'inscription" on public.signup_settings;
+create policy "Admin : modifier le code d'inscription" on public.signup_settings
+  for update to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+-- Vrai si l'utilisateur connecté a un compte actif
+create or replace function rls.is_active()
+returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and status = 'active');
+$$;
+revoke execute on function rls.is_active() from public, anon;
+grant execute on function rls.is_active() to authenticated;
+
+-- Un compte en attente ne voit que son propre profil, et aucune collection
+drop policy if exists "Membres : lire les profils" on public.profiles;
+create policy "Membres : lire les profils" on public.profiles
+  for select to authenticated
+  using (id = (select auth.uid()) or (select rls.is_active()));
+drop policy if exists "Admin : lire tous les profils" on public.profiles;
+create policy "Admin : lire tous les profils" on public.profiles
+  for select to authenticated using ((select public.is_admin()));
+
+drop policy if exists "Membres : lire les collections" on public.user_cards;
+create policy "Membres : lire les collections" on public.user_cards
+  for select to authenticated
+  using ((select rls.is_active()) and (user_id = (select auth.uid()) or not rls.card_hidden(card_id)));
+
+-- Ni booster, ni échange pour un compte en attente : ces déclencheurs
+-- annulent l'opération entière, quelle que soit la fonction qui l'a lancée.
+create or replace function private.require_active_members()
+returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if tg_table_name = 'booster_openings' then
+    if not exists (select 1 from public.profiles where id = new.user_id and status = 'active') then
+      raise exception 'Compte en attente de validation';
+    end if;
+  elsif tg_op = 'INSERT' or new.status = 'accepted' then
+    if exists (select 1 from public.profiles
+               where id in (new.proposer_id, new.recipient_id) and status <> 'active') then
+      raise exception 'Compte en attente de validation';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists require_active_member on public.booster_openings;
+create trigger require_active_member
+  before insert on public.booster_openings
+  for each row execute function private.require_active_members();
+drop trigger if exists require_active_members on public.trades;
+create trigger require_active_members
+  before insert or update of status on public.trades
+  for each row execute function private.require_active_members();
+
+-- Validation ou suspension d'un compte par un administrateur
+create or replace function public.admin_set_member_status(p_user uuid, p_status text)
+returns void
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Réservé aux administrateurs';
+  end if;
+  if p_status not in ('active', 'pending') then
+    raise exception 'Statut inconnu : %', p_status;
+  end if;
+  if p_user = auth.uid() and p_status <> 'active' then
+    raise exception 'Tu ne peux pas suspendre ton propre compte';
+  end if;
+  update public.profiles set status = p_status where id = p_user;
+  if not found then
+    raise exception 'Membre introuvable';
+  end if;
+end $$;
+revoke execute on function public.admin_set_member_status(uuid, text) from public, anon;
+grant execute on function public.admin_set_member_status(uuid, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 9. Données de départ
+-- ---------------------------------------------------------------------
+
+insert into public.game_settings default values on conflict (id) do nothing;
 
 insert into public.rarities (id, code, label, weight, is_secret) values
   (1, 'common',     'Commune',     60,   false),
@@ -758,26 +1006,34 @@ insert into public.rarities (id, code, label, weight, is_secret) values
   (3, 'rare',       'Rare',        10,   false),
   (4, 'ultra_rare', 'Ultra rare',   4,   false),
   (5, 'legendary',  'Légendaire',   1,   false),
-  (6, 'secret',     'Secrète',      0.5, true);
+  (6, 'secret',     'Secrète',      0.5, true)
+on conflict (id) do nothing;
 
-insert into public.card_sets (name) values ('Saison 2026-27'), ('Démo');
+-- Séries et cartes de démo : seulement sur un projet neuf (aucune série encore)
+do $$
+begin
+  if exists (select 1 from public.card_sets) then
+    return;
+  end if;
+  insert into public.card_sets (name) values ('Saison 2026-27'), ('Démo');
 
--- Cartes de démo pour tester tout de suite (à supprimer avant le lancement, voir plus bas)
-insert into public.cards (set_id, number, name, subtitle, rarity_id, stats, is_released)
-select s.id, v.number, v.name, v.subtitle, v.rarity_id, v.stats::jsonb, true
-from public.card_sets s
-cross join (values
-  (1, 'Ballon de match',     'Équipement',              1, '{}'),
-  (2, 'Le filet',            'Équipement',              1, '{}'),
-  (3, 'Manchette parfaite',  'Action',                  1, '{}'),
-  (4, 'Joueur mystère',      'Réceptionneur-attaquant', 2, '{"service": 6, "attaque": 7, "reception": 8, "bloc": 5}'),
-  (5, 'Ace décisif',         'Action',                  2, '{}'),
-  (6, 'Contre gagnant',      'Action',                  3, '{}'),
-  (7, 'Remontée historique', 'Moment',                  4, '{}'),
-  (8, 'Le trophée du club',  'Moment',                  5, '{}'),
-  (9, 'La mascotte',         'Moment',                  6, '{}')
-) as v(number, name, subtitle, rarity_id, stats)
-where s.name = 'Démo';
+  -- Cartes de démo pour tester tout de suite (à supprimer avant le lancement, voir plus bas)
+  insert into public.cards (set_id, number, name, subtitle, rarity_id, stats, is_released)
+  select s.id, v.number, v.name, v.subtitle, v.rarity_id, v.stats::jsonb, true
+  from public.card_sets s
+  cross join (values
+    (1, 'Ballon de match',     'Équipement',              1, '{}'),
+    (2, 'Le filet',            'Équipement',              1, '{}'),
+    (3, 'Manchette parfaite',  'Action',                  1, '{}'),
+    (4, 'Joueur mystère',      'Réceptionneur-attaquant', 2, '{"service": 6, "attaque": 7, "reception": 8, "bloc": 5}'),
+    (5, 'Ace décisif',         'Action',                  2, '{}'),
+    (6, 'Contre gagnant',      'Action',                  3, '{}'),
+    (7, 'Remontée historique', 'Moment',                  4, '{}'),
+    (8, 'Le trophée du club',  'Moment',                  5, '{}'),
+    (9, 'La mascotte',         'Moment',                  6, '{}')
+  ) as v(number, name, subtitle, rarity_id, stats)
+  where s.name = 'Démo';
+end $$;
 
 -- Profils des comptes créés avant l'exécution de ce script (s'il y en a)
 insert into public.profiles (id, username)
@@ -808,3 +1064,7 @@ on conflict (id) do nothing;
 --   delete from public.cards where set_id = (select id from public.card_sets where name = 'Démo');
 --   delete from public.card_sets where name = 'Démo';
 -- ---------------------------------------------------------------------
+
+
+-- L'API (PostgREST) recharge sa description de la base
+notify pgrst, 'reload schema';
