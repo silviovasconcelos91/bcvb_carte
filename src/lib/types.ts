@@ -55,7 +55,7 @@ export interface UserCard {
   quantity: number;
 }
 
-export type TradeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'failed';
+export type TradeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled' | 'failed' | 'countered';
 export type TradeSide = 'offer' | 'request';
 
 export interface TradeItem {
@@ -72,6 +72,7 @@ export interface Trade {
   message: string | null;
   created_at: string;
   resolved_at: string | null;
+  counter_of?: number | null;
   trade_items: TradeItem[];
 }
 

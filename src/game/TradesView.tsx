@@ -12,7 +12,7 @@ const mystery = (id: number): Card => ({
   rarity_id: null, stats: {}, is_released: true, in_boosters: true, masked: true,
 });
 
-const STATUS: Record<string, string> = { accepted: 'Accepté', declined: 'Refusé', cancelled: 'Annulé', failed: 'Échoué' };
+const STATUS: Record<string, string> = { accepted: 'Accepté', declined: 'Refusé', cancelled: 'Annulé', failed: 'Échoué', countered: 'Contre-proposé' };
 
 export function TradesView() {
   const { d, uid, openComposer } = useGame();
@@ -32,7 +32,7 @@ export function TradesView() {
 }
 
 function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' }) {
-  const { api, d, uid, refresh, openCard } = useGame();
+  const { api, d, uid, refresh, openCard, openComposer } = useGame();
   const L = useLookup();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -42,6 +42,9 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
   const iGet = t.trade_items.filter(i => (i.side === 'offer') !== meProposer);
   const short = kind === 'received' && iGive.some(i => qtyOf(d, uid, i.card_id) < i.quantity);
   const who = <strong>{nameOf(d, other)}</strong>;
+  const pairs = (list: TradeItem[]) => list.map(i => [i.card_id, i.quantity] as [number, number]);
+  // Contre-proposition : on part de l'échange reçu, modifiable avant envoi
+  const counter = () => openComposer({ to: other, counter: t.id, give: pairs(iGive), want: pairs(iGet) });
 
   async function act(action: 'accept' | 'decline' | 'cancel') {
     setBusy(true);
@@ -89,7 +92,8 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
   return (
     <article className="trade">
       <header className="trade-head">
-        <p className="trade-title">{kind === 'received' ? <>{who} te propose un échange</> : kind === 'sent' ? <>En attente de la réponse de {who}</> : <>Échange avec {who}</>}</p>
+        <p className="trade-title">{kind === 'received' ? (t.counter_of ? <>{who} te fait une contre-proposition</> : <>{who} te propose un échange</>)
+          : kind === 'sent' ? <>En attente de la réponse de {who}{t.counter_of ? ' à ta contre-proposition' : ''}</> : <>Échange avec {who}</>}</p>
         {kind === 'done' && <span className={`status s-${t.status}`}>{STATUS[t.status] ?? t.status}</span>}
         <time dateTime={t.created_at}>{relTime(t.resolved_at || t.created_at)}</time>
       </header>
@@ -103,6 +107,7 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
       {kind === 'received' && (
         <div className="trade-actions">
           <button className="btn" disabled={busy} onClick={() => void act('decline')}>Refuser</button>
+          <button className="btn" disabled={busy} onClick={counter}>Contre-proposer</button>
           <button className="btn primary" disabled={busy} onClick={() => void act('accept')}>Accepter l'échange</button>
         </div>
       )}

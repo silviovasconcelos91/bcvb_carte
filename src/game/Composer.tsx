@@ -10,6 +10,8 @@ import { nameOf, useGame } from './context';
 export interface ComposerOpts {
   to?: string;
   want?: [number, number][];
+  give?: [number, number][];
+  counter?: number; // id de l'échange reçu auquel on répond
 }
 
 export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () => void }) {
@@ -17,7 +19,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
   const L = useLookup();
   const toast = useToast();
   const [to, setTo] = useState<string | null>(opts.to ?? null);
-  const [give, setGive] = useState<Map<number, number>>(new Map());
+  const [give, setGive] = useState<Map<number, number>>(new Map(opts.give ?? []));
   const [want, setWant] = useState<Map<number, number>>(new Map(opts.want ?? []));
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,11 +41,12 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
     const list = (m: Map<number, number>): CardRef[] => [...m].filter(([, n]) => n > 0).map(([card_id, quantity]) => ({ card_id, quantity }));
     setBusy(true);
     try {
-      await api.createTrade(to, list(give), list(want), message.trim() || null);
+      if (opts.counter) await api.counterTrade(opts.counter, list(give), list(want), message.trim() || null);
+      else await api.createTrade(to, list(give), list(want), message.trim() || null);
       onClose();
       setTab('trades');
       await refresh();
-      toast(`Proposition envoyée à ${toName}`);
+      toast(opts.counter ? `Contre-proposition envoyée à ${toName}` : `Proposition envoyée à ${toName}`);
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e), true);
       setBusy(false);
@@ -92,8 +95,8 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
   }
 
   return (
-    <Modal title="Nouvel échange" onClose={onClose} wide
-      footer={to ? <><p className="composer-sum">{summary}</p><button className="btn primary" disabled={!(g + w) || busy} onClick={() => void send()}>Envoyer la proposition</button></> : undefined}>
+    <Modal title={opts.counter ? 'Contre-proposition' : 'Nouvel échange'} onClose={onClose} wide
+      footer={to ? <><p className="composer-sum">{summary}</p><button className="btn primary" disabled={!(g + w) || busy} onClick={() => void send()}>{opts.counter ? 'Envoyer la contre-proposition' : 'Envoyer la proposition'}</button></> : undefined}>
       {!to ? (
         <>
           <p className="muted">Avec qui veux-tu échanger&nbsp;?</p>
@@ -119,8 +122,8 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
         <>
           <div className="composer-to">
             <span className="avatar sm" aria-hidden="true">{initial(toName)}</span>
-            <span>Échange avec <strong>{toName}</strong></span>
-            <button className="btn small ghost" onClick={() => setTo(null)}>Changer de membre</button>
+            <span>{opts.counter ? 'Contre-proposition à' : 'Échange avec'} <strong>{toName}</strong></span>
+            {!opts.counter && <button className="btn small ghost" onClick={() => setTo(null)}>Changer de membre</button>}
           </div>
           <div className="composer-cols">
             <section><h3 className="h3">Je donne</h3>{pickList(uid, give, 'give')}</section>

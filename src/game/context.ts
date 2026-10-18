@@ -37,7 +37,7 @@ export interface GameCtx {
   setTab: (t: Tab) => void;
   refresh: () => Promise<void>;
   openCard: (id: number) => void;
-  openComposer: (opts?: { to?: string; want?: [number, number][] }) => void;
+  openComposer: (opts?: { to?: string; want?: [number, number][]; give?: [number, number][]; counter?: number }) => void;
   showReveal: (cards: DrawnCard[]) => void;
   pendingCode: string;
   setPendingCode: (c: string) => void;

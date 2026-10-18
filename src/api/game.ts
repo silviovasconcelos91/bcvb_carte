@@ -31,6 +31,7 @@ export interface GameApi {
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   acceptTrade(id: number): Promise<TradeStatus>;
   declineTrade(id: number): Promise<void>;
+  counterTrade(id: number, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   cancelTrade(id: number): Promise<void>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
   // mode démo uniquement
@@ -87,6 +88,7 @@ function createSupabaseGameApi(): GameApi {
     createTrade: (to, offer, request, message) => rpc<number>('create_trade', { p_recipient: to, p_offer: offer, p_request: request, p_message: message || null }),
     acceptTrade: id => rpc<TradeStatus>('accept_trade', { p_trade_id: id }),
     declineTrade: async id => { await rpc('decline_trade', { p_trade_id: id }); },
+    counterTrade: (id, offer, request, message) => rpc<number>('counter_trade', { p_trade_id: id, p_offer: offer, p_request: request, p_message: message || null }),
     cancelTrade: async id => { await rpc('cancel_trade', { p_trade_id: id }); },
     imageUrls: signedUrls,
   };
@@ -262,6 +264,14 @@ function createDemoGameApi(): GameApi {
       const t = db.trades.find(x => x.id === id && x.recipient_id === db.current && x.status === 'pending') ?? fail('Échange introuvable ou déjà traité');
       Object.assign(t, { status: 'declined', resolved_at: nowIso() });
       save();
+    },
+    async counterTrade(id, offer, request, message) {
+      const t = db.trades.find(x => x.id === id && x.recipient_id === db.current && x.status === 'pending') ?? fail('Échange introuvable ou déjà traité');
+      const newId = await this.createTrade(t.proposer_id, offer, request, message);
+      db.trades.find(x => x.id === newId)!.counter_of = id;
+      Object.assign(t, { status: 'countered', resolved_at: nowIso() });
+      save();
+      return newId;
     },
     async cancelTrade(id) {
       const t = db.trades.find(x => x.id === id && x.proposer_id === db.current && x.status === 'pending') ?? fail('Échange introuvable ou déjà traité');

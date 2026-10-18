@@ -20,7 +20,7 @@
 --  Principe de sécurité : le navigateur ne fait que LIRE les tables.
 --  Toutes les écritures passent par des fonctions (RPC) qui vérifient
 --  les règles côté base : open_booster, create_trade, accept_trade,
---  decline_trade, cancel_trade. Un membre peut seulement modifier son
+--  decline_trade, counter_trade, cancel_trade. Un membre peut seulement modifier son
 --  pseudo. Les administrateurs ont des droits d'écriture sur le catalogue.
 --
 --  Réglages à faire dans Supabase (Authentication) :
@@ -109,6 +109,8 @@ begin
     create type public.trade_side as enum ('offer', 'request');
   end if;
 end $$;
+-- countered : le destinataire a répondu par une contre-proposition (nouvel échange lié)
+alter type public.trade_status add value if not exists 'countered';
 -- (trade_side : offer = carte donnée par celui qui propose ; request = carte donnée par le destinataire)
 
 create table if not exists public.trades (
@@ -121,6 +123,8 @@ create table if not exists public.trades (
   resolved_at  timestamptz,
   check (proposer_id <> recipient_id)
 );
+-- Échange auquel celui-ci répond (contre-proposition)
+alter table public.trades add column if not exists counter_of bigint references public.trades (id) on delete set null;
 create index if not exists trades_proposer_idx on public.trades (proposer_id, status);
 create index if not exists trades_recipient_idx on public.trades (recipient_id, status);
 
@@ -614,6 +618,36 @@ begin
   end if;
 end $$;
 
+-- Répond à un échange reçu par une contre-proposition (destinataire uniquement) :
+-- l'échange d'origine passe en 'countered' et un nouvel échange part vers celui
+-- qui l'avait proposé. p_offer / p_request : du point de vue de celui qui répond.
+create or replace function public.counter_trade(
+  p_trade_id bigint,
+  p_offer    jsonb default '[]'::jsonb,
+  p_request  jsonb default '[]'::jsonb,
+  p_message  text default null
+)
+returns bigint
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_trade public.trades;
+  v_new   bigint;
+begin
+  select * into v_trade from public.trades where id = p_trade_id for update;
+  if not found or v_trade.recipient_id is distinct from auth.uid() then
+    raise exception 'Échange introuvable';
+  end if;
+  if v_trade.status <> 'pending' then
+    raise exception 'Échange déjà traité (%)', v_trade.status;
+  end if;
+
+  v_new := public.create_trade(v_trade.proposer_id, p_offer, p_request, p_message);
+  update public.trades set counter_of = p_trade_id where id = v_new;
+  update public.trades set status = 'countered', resolved_at = now() where id = p_trade_id;
+  return v_new;
+end $$;
+
 -- Annule sa propre proposition
 create or replace function public.cancel_trade(p_trade_id bigint)
 returns void
@@ -739,6 +773,7 @@ revoke execute on function
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
   public.decline_trade(bigint),
+  public.counter_trade(bigint, jsonb, jsonb, text),
   public.cancel_trade(bigint)
 from public, anon;
 
@@ -749,6 +784,7 @@ grant execute on function
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
   public.decline_trade(bigint),
+  public.counter_trade(bigint, jsonb, jsonb, text),
   public.cancel_trade(bigint)
 to authenticated;
 
