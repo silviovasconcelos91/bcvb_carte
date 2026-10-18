@@ -158,18 +158,19 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .pack-foil { position: absolute; inset: 0; background: linear-gradient(125deg, transparent 18%, rgba(255, 255, 255, .26) 30%, transparent 38%, rgba(255, 255, 255, .14) 58%, transparent 66%); mix-blend-mode: screen; pointer-events: none; }
 
 /* ---------- Cartes ---------- */
-.r1 { --rc: var(--r1); --a1: #5D6A7C; --a2: #A3AEBD; --frame: linear-gradient(155deg, #E7EBEF 0%, #A3ADBA 45%, #D7DCE3 72%, #8F9AA8 100%); }
-.r2 { --rc: var(--r2); --a1: #1C6E4A; --a2: #4CC08C; --frame: linear-gradient(155deg, #A5E3C5 0%, #2E9E6B 50%, #1D744E 100%); }
-.r3 { --rc: var(--r3); --a1: #1C4BA3; --a2: #5B97F3; --frame: linear-gradient(155deg, #BAD2FB 0%, #2F6FE0 50%, #1C4BA3 100%); }
-.r4 { --rc: var(--r4); --a1: #4A2AA6; --a2: #A88AF9; --frame: linear-gradient(155deg, #E4D9FE 0%, #8B5CF6 45%, #5530C0 100%); }
+/* --face : fond de la carte, teinte claire de la rareté pour garder le texte lisible */
+.r1 { --rc: var(--r1); --a1: #5D6A7C; --a2: #A3AEBD; --frame: linear-gradient(155deg, #E7EBEF 0%, #A3ADBA 45%, #D7DCE3 72%, #8F9AA8 100%); --face: linear-gradient(170deg, #EDF0F4 0%, #CFD6DF 100%); }
+.r2 { --rc: var(--r2); --a1: #1C6E4A; --a2: #4CC08C; --frame: linear-gradient(155deg, #A5E3C5 0%, #2E9E6B 50%, #1D744E 100%); --face: linear-gradient(170deg, #E3F6EC 0%, #B3E4C9 100%); }
+.r3 { --rc: var(--r3); --a1: #1C4BA3; --a2: #5B97F3; --frame: linear-gradient(155deg, #BAD2FB 0%, #2F6FE0 50%, #1C4BA3 100%); --face: linear-gradient(170deg, #E4EEFE 0%, #B8D0FA 100%); }
+.r4 { --rc: var(--r4); --a1: #4A2AA6; --a2: #A88AF9; --frame: linear-gradient(155deg, #E4D9FE 0%, #8B5CF6 45%, #5530C0 100%); --face: linear-gradient(170deg, #EEE6FF 0%, #CFBDFC 100%); }
 .rx { --rc: var(--line); --a1: var(--club-deep); --a2: #1B3F8F; }
-.r6 { --rc: #AAB2C5; --a1: #10131B; --a2: #3A3F58; --frame: linear-gradient(155deg, #6B7183 0%, #15171D 42%, #2B2E38 68%, #8A90A6 100%); }
-.r5 { --rc: var(--r5); --a1: #7A4E00; --a2: #F4C43F; --frame: linear-gradient(155deg, #FFF3C4 0%, #F2B01E 35%, #A86F00 66%, #FFE48A 100%); }
+.r6 { --rc: #AAB2C5; --a1: #10131B; --a2: #3A3F58; --frame: linear-gradient(155deg, #6B7183 0%, #15171D 42%, #2B2E38 68%, #8A90A6 100%); --face: linear-gradient(135deg, #F9D3E8 0%, #FFEFB8 28%, #C8F5E2 52%, #C6EBFF 74%, #DCD0FF 100%); }
+.r5 { --rc: var(--r5); --a1: #7A4E00; --a2: #F4C43F; --frame: linear-gradient(155deg, #FFF3C4 0%, #F2B01E 35%, #A86F00 66%, #FFE48A 100%); --face: linear-gradient(170deg, #FFF3CF 0%, #F7D677 100%); }
 
 .card { position: relative; width: 100%; aspect-ratio: 63 / 88; container-type: inline-size; }
 .card-body { position: absolute; inset: 0; overflow: hidden; padding: 3.4cqw; border-radius: 4.8cqw; background: var(--frame); box-shadow: 0 1px 1px rgba(10, 20, 40, .25), 0 8px 18px -8px rgba(10, 20, 40, .5); transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .45s cubic-bezier(.2, .7, .2, 1); }
 .card.is-active .card-body { transition: transform .08s linear; }
-.card-face { position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 2.8cqw; background: #F7F8FA; color: #13213C; }
+.card-face { position: relative; height: 100%; display: flex; flex-direction: column; overflow: hidden; border-radius: 2.8cqw; background: var(--face, #F7F8FA); color: #13213C; }
 .card-top { display: flex; align-items: center; justify-content: space-between; gap: 2cqw; padding: 3cqw 3.6cqw 2.4cqw; }
 .card-name { min-width: 0; overflow: hidden; font: 700 8.4cqw/1.08 var(--font-c); white-space: nowrap; text-overflow: ellipsis; }
 .gems { display: inline-flex; flex: none; gap: 1.7cqw; padding-right: .8cqw; }
@@ -179,7 +180,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .card-sub { margin: 2.6cqw 3.6cqw 0; color: #4C5A72; font: 600 5.4cqw/1.15 var(--font-c); }
 .card-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6cqw 4.4cqw; margin: 2.2cqw 3.6cqw 0; }
 .stat { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1.6cqw; color: #34425C; font: 600 4.4cqw/1 var(--font-c); }
-.stat-bar { height: 1.5cqw; overflow: hidden; border-radius: 1cqw; background: #DDE3EC; }
+.stat-bar { height: 1.5cqw; overflow: hidden; border-radius: 1cqw; background: rgba(19, 33, 60, .12); }
 .stat-bar span { display: block; height: 100%; border-radius: inherit; background: var(--rc); }
 .stat-v { color: #13213C; font-weight: 700; }
 .card-desc { display: -webkit-box; margin: 2.2cqw 3.6cqw 0; overflow: hidden; color: #34425C; font: 400 4.3cqw/1.32 var(--font); -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
@@ -225,10 +226,13 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .card-foil::after { content: ""; display: none; position: absolute; inset: 0; background: var(--etch); mix-blend-mode: overlay; }
 .r3 .card-foil, .r4 .card-foil, .r5 .card-foil, .r6 .card-foil { display: block; }
 .r4 .card-foil::after, .r5 .card-foil::after, .r6 .card-foil::after { display: block; }
-.r4 .card-foil { opacity: .6; background-image: var(--rainbow); background-size: 300% 300%; animation-duration: 7s; }
+/* Ultra rare : arc-en-ciel en overlay (il teinte sans délaver l'illustration vers le blanc) et bande plus vive qui passe */
+.r4 .card-foil { opacity: .75; mix-blend-mode: overlay; background-image: linear-gradient(115deg, transparent 25%, rgba(255, 255, 255, .55) 45%, rgba(255, 255, 255, .55) 50%, transparent 70%), var(--rainbow); background-size: 260% 260%, 300% 300%; animation-duration: 7s; }
+.r4 .card-foil::after { opacity: .6; }
 .r5 .card-foil { opacity: .85; mix-blend-mode: overlay; background-image: linear-gradient(115deg, transparent 15%, rgba(255, 248, 210, .9) 30%, rgba(242, 176, 30, .3) 42%, rgba(255, 252, 228, .95) 52%, transparent 70%); animation-duration: 5s; }
 .r6 .card-foil { opacity: .8; background-image: var(--rainbow); background-size: 300% 300%; animation: foil 5s ease-in-out infinite alternate, prism 8s linear infinite; }
 .card.is-active .card-foil { opacity: 1; animation-play-state: paused; background-position: var(--px, 50%) var(--py, 50%); }
+.card.r4.is-active .card-foil { opacity: .9; }
 .card.r6.is-active .card-foil { animation: prism 8s linear infinite; }
 
 /* Bande holographique sur toute la carte */
