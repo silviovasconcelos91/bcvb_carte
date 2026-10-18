@@ -1,7 +1,7 @@
 import { CONFIG, DEMO } from '../config';
 import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
-import { signIn } from '../lib/auth';
+import { PASSWORD_MIN, loginId, loginIdOf, signIn } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
 import { slug } from '../lib/format';
 
@@ -51,6 +51,7 @@ export interface AdminApi {
   deleteCode(id: number): Promise<void>;
   resetFreeBooster(uid: string): Promise<void>;
   setMemberStatus(uid: string, status: MemberStatus): Promise<void>;
+  setPassword(uid: string, password: string): Promise<string>; // renvoie l'identifiant de connexion du membre
   saveSignupCode(code: string | null): Promise<void>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
   reset?(): Promise<void>;
@@ -151,6 +152,7 @@ function createSupabaseAdminApi(): AdminApi {
     deleteCode: async id => { ok(await sb.from('booster_codes').delete().eq('id', id)); },
     resetFreeBooster: async uid => { ok(await sb.rpc('admin_reset_free_booster', { p_user: uid })); },
     setMemberStatus: async (uid, status) => { ok(await sb.rpc('admin_set_member_status', { p_user: uid, p_status: status })); },
+    setPassword: async (uid, password) => loginIdOf(ok<string>(await sb.rpc('admin_set_password', { p_user: uid, p_password: password }))),
     saveSignupCode: async code => { ok(await sb.from('signup_settings').update({ code }).eq('id', true).select().single()); },
     imageUrls: signedUrls,
   };
@@ -304,6 +306,12 @@ function createDemoAdminApi(): AdminApi {
       const p = db.profiles.find(x => x.id === uid) ?? fail('Membre introuvable');
       p.status = status;
       save();
+    },
+    async setPassword(uid, password) {
+      if (password.length < PASSWORD_MIN) fail(`Le mot de passe doit faire au moins ${PASSWORD_MIN} caractères`);
+      if (uid === 'demo-admin') fail("Le mot de passe d'un administrateur se change depuis Supabase (Authentication > Users)");
+      const p = db.profiles.find(x => x.id === uid) ?? fail('Membre introuvable');
+      return loginId(p.username);
     },
     async saveSignupCode(code) {
       if (code != null && (code.trim().length < 4 || code.trim().length > 40)) fail("Le code d'inscription doit faire entre 4 et 40 caractères.");

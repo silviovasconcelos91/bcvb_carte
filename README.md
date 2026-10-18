@@ -51,12 +51,7 @@ Chaque membre crée son compte depuis le site avec un **pseudo** et un **mot de 
 
 `VITE_LOGIN_EMAIL_DOMAIN` doit être un **vrai domaine avec des enregistrements MX**, de préférence celui du club (par exemple `bcvb.fr`) : Supabase refuse `example.com`, `test.com` ou `localhost`. Les adresses n'ont pas besoin d'exister, aucun e-mail n'y est envoyé.
 
-**Mot de passe oublié.** Sans e-mail, pas de lien de réinitialisation : un administrateur en redonne un depuis son poste, avec `LOGIN_EMAIL_DOMAIN` (même valeur que `VITE_LOGIN_EMAIL_DOMAIN`) dans `.env.admin` :
-
-```bash
-npm run reset-password -- "Léa Martin"                  # génère et affiche un mot de passe
-npm run reset-password -- "Léa Martin" "NouveauMotDePasse"
-```
+**Mot de passe oublié.** Sans e-mail, pas de lien de réinitialisation : un administrateur en donne un nouveau depuis la console (`/admin` > Membres > **Mot de passe**). La console propose un mot de passe facile à dicter et affiche l'identifiant de connexion du membre ; ses sessions ouvertes sont fermées. Le mot de passe d'un administrateur se change dans Supabase (Authentication > Users).
 
 Un membre connecté change lui-même son mot de passe et son pseudo affiché en cliquant sur son pseudo, en haut du jeu.
 

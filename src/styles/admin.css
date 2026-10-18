@@ -91,6 +91,7 @@
 .field .select { border-radius: 10px; min-height: 44px; }
 .with-btn { display: flex; gap: 8px; }
 .input.mono { font: 700 18px/1 var(--font-c); letter-spacing: .04em; text-transform: uppercase; }
+.input.mono.pw { text-transform: none; }
 .code-new { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 14px; margin-bottom: 20px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .code-new .span { grid-column: 1 / -1; }
 .code-kind { justify-self: start; }

@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react';
 import { CONFIG } from '../config';
 import type { MemberStatus, Profile } from '../lib/types';
 import { fmtDuration, freeBoosters, initial, intervalMs, sumValues } from '../lib/format';
-import { useRunner } from '../components/Toasts';
+import { useRunner, useToast } from '../components/Toasts';
+import { Modal } from '../components/Modal';
+import { PASSWORD_MIN } from '../lib/auth';
 import { nameOf, useAdmin } from './context';
 
 export function MembersAdmin() {
@@ -11,6 +13,7 @@ export function MembersAdmin() {
   const released = d.cards.filter(c => c.is_released).length;
   // Comptes en attente en premier, puis ordre alphabétique (celui du chargement)
   const list = [...d.profiles].sort((a, b) => +(b.status === 'pending') - +(a.status === 'pending'));
+  const [pwFor, setPwFor] = useState<Profile | null>(null);
   const setStatus = async (p: Profile, status: MemberStatus) => {
     const msg = status === 'active' ? `Compte de ${p.username} validé` : `Compte de ${p.username} suspendu`;
     if (await run(() => api.setMemberStatus(p.id, status), msg)) await refresh();
@@ -39,6 +42,7 @@ export function MembersAdmin() {
                   {!isPending && fb.available < fb.max && (
                     <button className="btn small" onClick={async () => { if (await run(() => api.resetFreeBooster(p.id), `Boosters gratuits de ${nameOf(d, p.id)} rechargés`)) await refresh(); }}>Recharger</button>
                   )}
+                  {!d.adminSet.has(p.id) && <>{' '}<button className="btn small" onClick={() => setPwFor(p)}>Mot de passe</button></>}
                   {!isPending && p.id !== d.me?.id && <>{' '}<button className="btn small ghost" onClick={() => void setStatus(p, 'pending')}>Suspendre</button></>}
                 </td>
               </tr>
@@ -46,7 +50,69 @@ export function MembersAdmin() {
           })}
         </tbody>
       </table></div>
+      {pwFor && <PasswordReset member={pwFor} onClose={() => setPwFor(null)} />}
     </>
+  );
+}
+
+// Mot de passe perdu : l'administrateur en donne un nouveau, à transmettre au membre de vive voix
+const PW_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789'; // sans i, l, o, 0 ni 1, faciles à confondre
+function randomPassword(): string {
+  const chars = [...crypto.getRandomValues(new Uint8Array(12))].map(b => PW_CHARS[b % PW_CHARS.length]).join('');
+  return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
+}
+
+function PasswordReset({ member, onClose }: { member: Profile; onClose: () => void }) {
+  const { api } = useAdmin();
+  const run = useRunner();
+  const toast = useToast();
+  const [password, setPassword] = useState(randomPassword);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<{ login: string; password: string } | null>(null);
+  const tooShort = password.trim().length < PASSWORD_MIN;
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    if (tooShort) return;
+    setBusy(true);
+    let login = '';
+    if (await run(async () => { login = await api.setPassword(member.id, password.trim()); }, `Mot de passe de ${member.username} changé`)) setDone({ login, password: password.trim() });
+    setBusy(false);
+  }
+  async function copy() {
+    if (!done) return;
+    try {
+      await navigator.clipboard.writeText(`Identifiant : ${done.login}\nMot de passe : ${done.password}`);
+      toast('Copié');
+    } catch {
+      toast('Copie impossible : sélectionne le texte à la main.', true);
+    }
+  }
+
+  return (
+    <Modal title={`Mot de passe de ${member.username}`} onClose={onClose}
+      footer={done
+        ? <span className="foot-btns"><button className="btn" onClick={() => void copy()}>Copier</button><button className="btn primary" onClick={onClose}>Terminé</button></span>
+        : <span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" form="pw-form" disabled={busy || tooShort}>Changer le mot de passe</button></span>}>
+      {done ? (
+        <div className="settings">
+          <p>Transmets ces informations au membre, qui pourra ensuite choisir son propre mot de passe en cliquant sur son pseudo, en haut du jeu.</p>
+          <label className="field"><span>Identifiant de connexion</span><input className="input mono pw" value={done.login} readOnly /></label>
+          <label className="field"><span>Nouveau mot de passe</span><input className="input mono pw" value={done.password} readOnly /></label>
+        </div>
+      ) : (
+        <form id="pw-form" className="settings" onSubmit={save}>
+          <p className="muted">Le mot de passe actuel ne fonctionnera plus et les sessions ouvertes de {member.username} seront fermées sur tous ses appareils.</p>
+          <label className="field"><span>Nouveau mot de passe</span>
+            <span className="with-btn">
+              <input className="input mono pw" value={password} minLength={PASSWORD_MIN} maxLength={72} onChange={e => setPassword(e.target.value)} spellCheck={false} autoComplete="off" required aria-invalid={tooShort} />
+              <button type="button" className="btn" onClick={() => setPassword(randomPassword())}>Générer</button>
+            </span>
+          </label>
+          <p className="hint">{tooShort ? `Au moins ${PASSWORD_MIN} caractères.` : 'Un mot de passe généré est facile à dicter : pas de lettres ni de chiffres qui se ressemblent.'}</p>
+        </form>
+      )}
+    </Modal>
   );
 }
 

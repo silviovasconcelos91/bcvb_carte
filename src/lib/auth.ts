@@ -4,7 +4,6 @@ import { getSupabase } from './supabase';
 // Comptes pseudo + mot de passe. Supabase identifie un compte par une adresse e-mail :
 // chaque pseudo devient une adresse interne, cartes-<identifiant>@<VITE_LOGIN_EMAIL_DOMAIN>,
 // à laquelle aucun e-mail n'est jamais envoyé (confirmation désactivée dans Supabase).
-// Cette règle doit rester identique à loginEmail() de scripts/reset-password.mjs.
 const PREFIX = 'cartes-';
 
 export const PSEUDO_MIN = 3;
