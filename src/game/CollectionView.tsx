@@ -2,7 +2,7 @@ import { Fragment, useState, type KeyboardEvent } from 'react';
 import type { Card } from '../lib/types';
 import { pad2, plural, sumValues } from '../lib/format';
 import { cardName, isSecret, rarClass, rarText, rClass, rarityLabel, useLookup } from '../lib/lookup';
-import { CardView, Gems } from '../components/visuals';
+import { CardView, RarityGems } from '../components/visuals';
 import { useGame } from './context';
 
 type Show = 'all' | 'owned' | 'missing' | 'dups';
@@ -67,7 +67,8 @@ export function CollectionView() {
           {SHOWS.map(([v, l]) => <button key={v} aria-pressed={show === v} onClick={() => setShow(v)}>{l}</button>)}
         </div>
         <div className="rchips" role="group" aria-label="Rareté">
-          {d.rarities.map(r => <button key={r.id} className={`rchip ${rarClass(L, r.id)}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
+          {/* Rareté secrète : visible dans le filtre seulement une fois une de ses cartes obtenue */}
+          {d.rarities.filter(r => !r.is_secret || d.cards.some(c => c.rarity_id === r.id && mine.get(c.id))).map(r => <button key={r.id} className={`rchip ${rarClass(L, r.id)}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
         </div>
       </div>
       {!total ? (
@@ -111,7 +112,7 @@ export function CollectionView() {
         <div className="slot">
           <span className="slot-num">{pad2(card.number)}</span>
           <span className="slot-name">{card.rarity_id ? rarText(L, card) : ''}</span>
-          {card.rarity_id ? <span className="gems"><Gems n={card.rarity_id} /></span> : <span className="slot-q" aria-hidden="true">?</span>}
+          {card.rarity_id ? <span className="gems"><RarityGems id={card.rarity_id} /></span> : <span className="slot-q" aria-hidden="true">?</span>}
         </div>
       </div>
     );

@@ -270,7 +270,11 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .r6 .card-glare { mix-blend-mode: overlay; }
 
 .gems i.secret, .rchip.r6 i, .rlabel.r6 i { background: conic-gradient(#FF4DA6, #FFD600, #00E0FF, #8660FF, #FF4DA6); }
+.gems i.prism { background: conic-gradient(#FF4DA6, #FFD600, #00E0FF, #8660FF, #FF4DA6); }
 .gems i.secret { width: 4.2cqw; height: 4.2cqw; }
+/* Texte choisi à la place des losanges */
+.gems b { color: var(--rc); font: 800 6cqw/1 var(--font-c); white-space: nowrap; text-shadow: 0 0 .6cqw rgba(255, 255, 255, .9); }
+.slot .gems b { font-size: 15px; text-shadow: none; }
 .slot .gems i.secret { width: 11px; height: 11px; }
 
 /* Halo autour des cartes rares */

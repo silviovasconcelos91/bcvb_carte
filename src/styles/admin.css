@@ -55,6 +55,10 @@
 .rar-name .gems, .slot .gems { padding: 0; gap: 5px; }
 .rar-name .gems i { width: 9px; height: 9px; border-radius: 2px; box-shadow: none; }
 .rar-name .input { width: 160px; }
+.rar-name .gems b { font-size: 14px; text-shadow: none; }
+.rar-symbol { display: flex; gap: 6px; }
+.input.tiny { width: 64px; }
+.input.short { width: 96px; }
 /* Raretés : aperçu en grand et catalogue d'effets */
 .rar-studio { display: grid; grid-template-columns: 240px minmax(0, 1fr); align-items: start; gap: 28px; margin: 18px 0 22px; }
 .rar-preview { display: grid; gap: 10px; padding: 6px; }

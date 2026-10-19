@@ -1,8 +1,8 @@
 import type { CSSProperties } from 'react';
-import type { Card } from '../lib/types';
+import type { Card, Rarity } from '../lib/types';
 import { CONFIG } from '../config';
 import { initial, pad2, statLabel } from '../lib/format';
-import { artUrl, cardStats, effectOf, rarClass, rarityLabel, useLookup, type ArtSize } from '../lib/lookup';
+import { artUrl, cardStats, effectOf, fxInfo, fxOf, rarClass, rarityLabel, useLookup, type ArtSize } from '../lib/lookup';
 import { useTilt } from './useTilt';
 
 // Ballon aux couleurs du club : cercle blanc et trois bandes courbes
@@ -90,8 +90,19 @@ export function CardArtSvg({ card }: { card: Pick<Card, 'subtitle' | 'stats' | '
   );
 }
 
-export const Gems = ({ n }: { n: number }) =>
-  n >= 6 ? <i className="secret" /> : <>{Array.from({ length: n }, (_, i) => <i key={i} />)}</>;
+// Losanges d'une rareté : texte libre s'il y en a un, sinon le nombre choisi, sinon selon le niveau de l'effet
+export function Gems({ r }: { r: Pick<Rarity, 'id'> & Partial<Pick<Rarity, 'effect' | 'gems' | 'badge'>> | undefined }) {
+  if (!r) return null;
+  const badge = r.badge?.trim();
+  if (badge) return <b>{badge}</b>;
+  const level = fxInfo(fxOf(r)).level;
+  if (r.gems == null) return level >= 6 ? <i className="secret" /> : <>{Array.from({ length: level }, (_, i) => <i key={i} />)}</>;
+  return <>{Array.from({ length: r.gems }, (_, i) => <i key={i} className={level >= 6 ? 'prism' : undefined} />)}</>;
+}
+export const RarityGems = ({ id }: { id: number | null | undefined }) => {
+  const L = useLookup();
+  return <Gems r={id ? L.rarityById.get(id) ?? { id } : undefined} />;
+};
 
 const MASK_ART = (
   <svg viewBox="0 0 34 46" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
@@ -130,7 +141,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
         <div className="card-face">
           <div className="card-top">
             <span className="card-name">{card.name}</span>
-            <span className="gems" title={rarityLabel(L, card.rarity_id)}><Gems n={r} /></span>
+            <span className="gems" title={rarityLabel(L, card.rarity_id)}><RarityGems id={card.rarity_id ?? 1} /></span>
           </div>
           <div className="card-art">
             {url ? <img src={url} alt="" loading="lazy" /> : <CardArtSvg card={card} />}

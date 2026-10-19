@@ -57,7 +57,9 @@ create table if not exists public.rarities (
   weight numeric not null check (weight >= 0),     -- poids relatif au tirage (0 = jamais)
   is_secret boolean not null default false,        -- true = rareté masquée tant que la carte n'est pas obtenue
   effect smallint not null default 1 check (effect between 1 and 15),  -- effet visuel, voir EFFECTS dans src/lib/lookup.tsx
-  color  text check (color ~ '^#[0-9A-Fa-f]{6}$')  -- couleur de l'effet (null = couleur par défaut de l'effet)
+  color  text check (color ~ '^#[0-9A-Fa-f]{6}$'),  -- couleur de l'effet (null = couleur par défaut de l'effet)
+  gems   smallint check (gems between 0 and 10),   -- nombre de losanges (null = selon l'effet)
+  badge  text check (char_length(badge) between 1 and 12)  -- texte affiché à la place des losanges (★, SR…)
 );
 
 -- Séries / extensions : "Saison 2026-27", "Tournoi de Noël"...
@@ -195,6 +197,9 @@ end $$;
 alter table public.rarities drop constraint if exists rarities_effect_check;
 alter table public.rarities add constraint rarities_effect_check check (effect between 1 and 15);
 alter table public.rarities      add column if not exists color text check (color ~ '^#[0-9A-Fa-f]{6}$');
+-- Losanges des raretés : nombre, ou texte à la place
+alter table public.rarities      add column if not exists gems smallint check (gems between 0 and 10);
+alter table public.rarities      add column if not exists badge text check (char_length(badge) between 1 and 12);
 alter table public.game_settings add column if not exists free_booster_max int not null default 2 check (free_booster_max between 1 and 10);
 alter table public.cards         add column if not exists thumb_path text;
 alter table public.cards         add column if not exists in_boosters boolean not null default true;

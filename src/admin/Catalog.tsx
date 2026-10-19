@@ -98,13 +98,22 @@ function odds(d: AdminIndex, rows: Pick<Rarity, 'id' | 'weight'>[]) {
   }));
 }
 
-interface RarRow { id: number; code: string; label: string; weight: string; is_secret: boolean; effect: number; color: string; isNew?: boolean }
+interface RarRow { id: number; code: string; label: string; weight: string; is_secret: boolean; effect: number; color: string; gems: string; badge: string; isNew?: boolean }
+// Symboles proposés à la place des losanges
+const BADGES = ['★', '★★', '★★★', '♥', '●', '♛', '⚡', '🔥', '🏐'];
+
+// Losanges d'une ligne : champ vide = selon l'effet, texte vide = losanges
+const symbols = (r: Pick<RarRow, 'gems' | 'badge'>) => ({
+  gems: r.gems.trim() === '' ? null : Math.max(0, Math.min(10, Math.round(+r.gems) || 0)),
+  badge: r.badge.trim().slice(0, 12) || null,
+});
 
 export function RaritiesAdmin() {
+
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
   const confirm = useConfirm();
-  const [rows, setRows] = useState<RarRow[]>(() => d.rarities.map(r => ({ id: r.id, code: r.code, label: r.label, weight: String(r.weight), is_secret: r.is_secret, effect: fxOf(r), color: colorOf(r) })));
+  const [rows, setRows] = useState<RarRow[]>(() => d.rarities.map(r => ({ id: r.id, code: r.code, label: r.label, weight: String(r.weight), is_secret: r.is_secret, effect: fxOf(r), color: colorOf(r), gems: r.gems == null ? '' : String(r.gems), badge: r.badge ?? '' })));
   const [sel, setSel] = useState(() => rows[0]?.id ?? 1);
   const [busy, setBusy] = useState(false);
   const numeric = rows.map(r => ({ id: r.id, weight: Math.max(0, +r.weight || 0) }));
@@ -114,7 +123,7 @@ export function RaritiesAdmin() {
   const current = rows.find(r => r.id === sel) ?? rows[0];
 
   // Aperçu avec les réglages en cours, pas encore enregistrés
-  const draft: Rarity[] = rows.map(r => ({ id: r.id, code: r.code, label: r.label, weight: +r.weight || 0, is_secret: r.is_secret, effect: r.effect, color: r.color }));
+  const draft: Rarity[] = rows.map(r => ({ id: r.id, code: r.code, label: r.label, weight: +r.weight || 0, is_secret: r.is_secret, effect: r.effect, color: r.color, ...symbols(r) }));
   const previewLookup = { ...d.lookup, rarityById: new Map(draft.map(r => [r.id, r])) };
   const sample = d.cards.find(c => c.rarity_id === current?.id && c.is_released) ?? d.cards.find(c => c.is_released) ?? d.cards[0];
   const sampleFor = (rarity_id: number): Card => (sample
@@ -124,7 +133,7 @@ export function RaritiesAdmin() {
   function add() {
     const id = Math.max(0, ...rows.map(r => r.id)) + 1;
     const fx = EFFECTS[2];
-    setRows(rs => [...rs, { id, code: `custom_${id}`, label: 'Nouvelle rareté', weight: '1', is_secret: false, effect: fx.id, color: fx.color, isNew: true }]);
+    setRows(rs => [...rs, { id, code: `custom_${id}`, label: 'Nouvelle rareté', weight: '1', is_secret: false, effect: fx.id, color: fx.color, gems: '', badge: '', isNew: true }]);
     setSel(id);
   }
   async function remove(r: RarRow) {
@@ -138,7 +147,7 @@ export function RaritiesAdmin() {
     setBusy(true);
     const list = rows.map(r => ({
       id: r.id, code: r.code, label: r.label.trim() || d.rarities.find(x => x.id === r.id)?.label || `Rareté ${r.id}`,
-      weight: Math.max(0, +r.weight || 0), is_secret: r.is_secret, effect: r.effect, color: isHex(r.color) ? r.color.toUpperCase() : null,
+      weight: Math.max(0, +r.weight || 0), is_secret: r.is_secret, effect: r.effect, color: isHex(r.color) ? r.color.toUpperCase() : null, ...symbols(r),
     }));
     if (await run(() => api.saveRarities(list), 'Raretés enregistrées')) {
       setRows(rs => rs.map(r => ({ ...r, isNew: false })));
@@ -179,17 +188,21 @@ export function RaritiesAdmin() {
       )}
       <form onSubmit={save} id="rar-form">
         <div className="table-wrap"><table className="tbl">
-          <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th>Losanges</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {rows.map(r => {
               const x = o.get(r.id);
               return (
                 <tr key={r.id} data-rid={r.id} className={r.id === sel ? 'is-sel' : undefined} onFocusCapture={() => setSel(r.id)} onClick={() => setSel(r.id)}>
-                  <td><span className={`rar-name ${fxClass(r.effect, r.id)}`}><span className="gems"><Gems n={fxInfo(r.effect).level} /></span><input className="input" value={r.label} maxLength={30} onChange={e => update(r.id, { label: e.target.value })} aria-label={`Nom de la rareté ${r.id}`} /></span></td>
+                  <td><span className={`rar-name ${fxClass(r.effect, r.id)}`}><span className="gems"><Gems r={{ id: r.id, effect: r.effect, ...symbols(r) }} /></span><input className="input" value={r.label} maxLength={30} onChange={e => update(r.id, { label: e.target.value })} aria-label={`Nom de la rareté ${r.id}`} /></span></td>
                   <td><span className="select-wrap"><select className="select" value={r.effect} onChange={e => update(r.id, { effect: +e.target.value })} aria-label={`Effet de ${r.label}`}>
                     {EFFECTS.map(fx => <option key={fx.id} value={fx.id}>{fx.label}</option>)}
                   </select></span></td>
                   <td><input className="color-input" type="color" value={r.color} onChange={e => update(r.id, { color: e.target.value })} aria-label={`Couleur de ${r.label}`} /></td>
+                  <td><span className="rar-symbol">
+                    <input className="input tiny" type="number" min={0} max={10} step={1} placeholder={String(fxInfo(r.effect).level >= 6 ? 1 : fxInfo(r.effect).level)} value={r.gems} disabled={!!r.badge.trim()} onChange={e => update(r.id, { gems: e.target.value })} aria-label={`Nombre de losanges de ${r.label} (vide : selon l’effet)`} title="Vide : selon l’effet" />
+                    <input className="input short" list="rar-badges" maxLength={12} placeholder="ou texte" value={r.badge} onChange={e => update(r.id, { badge: e.target.value })} aria-label={`Texte à la place des losanges de ${r.label}`} title="Remplace les losanges, ex. ★★ ou SR" />
+                  </span></td>
                   <td className="num"><input className="input narrow" type="number" min={0} step={0.1} value={r.weight} onChange={e => update(r.id, { weight: e.target.value })} aria-label={`Poids de ${r.label}`} /></td>
                   {x ? <><td className="num odds">{fmtPct(x.p)}</td><td className="num odds">{fmtPct(x.booster)}</td></> : <td className="num odds muted" colSpan={2}>aucune carte à tirer</td>}
                   <td><label className="check"><input type="checkbox" checked={r.is_secret} onChange={e => update(r.id, { is_secret: e.target.checked })} /><span className="sr-only">Rareté secrète</span></label></td>
@@ -202,6 +215,7 @@ export function RaritiesAdmin() {
             })}
           </tbody>
         </table></div>
+        <datalist id="rar-badges">{BADGES.map(b => <option key={b} value={b} />)}</datalist>
         <div className="form-foot">
           <p className="muted">Calcul pour un booster standard de {plural(d.settings.booster_size, 'carte', 'cartes')}, avec les cartes publiées actuellement. Une rareté utilisée par des cartes ne peut pas être supprimée : mets son poids à 0 pour la retirer du tirage.</p>
           <button className="btn primary" disabled={busy}>Enregistrer les raretés</button>
