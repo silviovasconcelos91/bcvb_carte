@@ -18,14 +18,17 @@ export function CollectionView() {
   const [rar, setRar] = useState<Set<number>>(new Set());
   const [sort, setSort] = useState<Sort>('number');
   const mine = d.mine;
+  // Série inactive (hors boosters) : absente de la collection tant que le membre n'en a aucune carte
+  const shown = new Set(d.sets.filter(s => s.in_boosters || d.cards.some(c => c.set_id === s.id && mine.get(c.id))).map(s => s.id));
+  const cards = d.cards.filter(c => shown.has(c.set_id));
   // Les cartes secrètes possédées comptent dans le score, jamais dans le total
-  const distinct = d.cards.filter(c => mine.get(c.id)).length;
-  const goal = d.cards.filter(c => !isSecret(L, c)).length;
+  const distinct = cards.filter(c => mine.get(c.id)).length;
+  const goal = cards.filter(c => !isSecret(L, c)).length;
   const total = sumValues(mine);
   const dups = [...mine.values()].reduce((a, q) => a + q - 1, 0);
   const pct = goal ? Math.min(100, Math.round((distinct / goal) * 100)) : 0;
 
-  let list = d.cards.filter(c => set === 'all' || String(c.set_id) === set);
+  let list = cards.filter(c => set === 'all' || String(c.set_id) === set);
   if (rar.size) list = list.filter(c => c.rarity_id != null && rar.has(c.rarity_id));
   if (show === 'owned') list = list.filter(c => mine.get(c.id));
   if (show === 'missing') list = list.filter(c => !mine.get(c.id));
@@ -55,7 +58,7 @@ export function CollectionView() {
         <span className="select-wrap">
           <select className="select" value={set} onChange={e => setSet(e.target.value)} aria-label="Série">
             <option value="all">Toutes les séries</option>
-            {d.sets.filter(s => d.cards.some(c => c.set_id === s.id)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            {d.sets.filter(s => cards.some(c => c.set_id === s.id)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </span>
         <span className="select-wrap">
@@ -68,7 +71,7 @@ export function CollectionView() {
         </div>
         <div className="rchips" role="group" aria-label="Rareté">
           {/* Rareté secrète : visible dans le filtre seulement une fois une de ses cartes obtenue */}
-          {d.rarities.filter(r => !r.is_secret || d.cards.some(c => c.rarity_id === r.id && mine.get(c.id))).map(r => <button key={r.id} className={`rchip ${rarClass(L, r.id)}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
+          {d.rarities.filter(r => !r.is_secret || cards.some(c => c.rarity_id === r.id && mine.get(c.id))).map(r => <button key={r.id} className={`rchip ${rarClass(L, r.id)}`} aria-pressed={rar.has(r.id)} onClick={() => toggleRar(r.id)}><i />{r.label}</button>)}
         </div>
       </div>
       {!total ? (
