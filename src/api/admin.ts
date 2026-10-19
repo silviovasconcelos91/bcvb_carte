@@ -1,14 +1,15 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, UserCard } from '../lib/types';
+import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, Subtitle, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { PASSWORD_MIN, loginId, loginIdOf, signIn } from '../lib/auth';
-import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
+import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
 import { slug } from '../lib/format';
 
 export interface AdminData {
   settings: Settings;
   rarities: Rarity[];
   sets: CardSet[];
+  subtitles: Subtitle[];
   cards: Card[];
   profiles: Profile[];
   userCards: UserCard[];
@@ -44,6 +45,8 @@ export interface AdminApi {
   deleteCard(card: Card): Promise<void>;
   saveSet(set: Partial<CardSet> & { name: string; in_boosters: boolean }): Promise<void>;
   deleteSet(id: number): Promise<void>;
+  saveSubtitle(s: Partial<Subtitle> & { label: string }): Promise<void>; // renommer met à jour les cartes qui l'utilisent
+  deleteSubtitle(id: number): Promise<void>; // le retire des cartes qui l'utilisent
   saveRarities(list: RarityInput[]): Promise<void>; // crée les raretés absentes, met à jour les autres
   deleteRarity(id: number): Promise<void>;
   saveSettings(st: Settings): Promise<void>;
@@ -65,6 +68,8 @@ export function friendly(msg: string): string {
   if (/'(gems|badge)' column of 'rarities'/.test(msg)) return 'Base pas à jour : exécute supabase/patches/2026-10-19-losanges-raretes.sql.';
   if (/cards_set_id_number_key/.test(msg)) return 'Ce numéro est déjà pris dans cette série.';
   if (/card_sets_name_key/.test(msg)) return 'Une série porte déjà ce nom.';
+  if (/card_subtitles_label_key/.test(msg)) return 'Ce sous-titre existe déjà.';
+  if (/card_subtitles/.test(msg) && /schema cache|does not exist/.test(msg)) return 'Base pas à jour : exécute supabase/patches/2026-10-19-sous-titres.sql.';
   if (/booster_codes_code_idx/.test(msg)) return 'Ce code existe déjà.';
   if (/signup_settings_code_check/.test(msg)) return "Le code d'inscription doit faire entre 4 et 40 caractères.";
   if (/delete on table "card_sets"/.test(msg)) return 'Cette série contient encore des cartes.';
@@ -92,10 +97,12 @@ function createSupabaseAdminApi(): AdminApi {
       const week = new Date(Date.now() - 7 * 864e5).toISOString();
       const openings = () => sb.from('booster_openings').select('id', { count: 'exact', head: true });
       const trades = () => sb.from('trades').select('id', { count: 'exact', head: true });
-      const [settings, rarities, sets, cards, profiles, userCards, codes, admins, recent, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
+      const [settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins, recent, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => ok<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => ok<Rarity[]>(r)),
         sb.from('card_sets').select('*').order('id').then(r => ok<CardSet[]>(r)),
+        // Base pas encore mise à jour : liste vide plutôt qu'une console bloquée
+        sb.from('card_subtitles').select('*').order('id').then(r => (r.error ? [] : r.data as Subtitle[])),
         fetchAll<Card>(() => sb.from('cards').select('*').order('set_id').order('number')),
         fetchAll<Profile>(() => sb.from('profiles').select('id, username, status, last_free_booster_at, created_at').order('username')),
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
@@ -108,7 +115,7 @@ function createSupabaseAdminApi(): AdminApi {
         trades().eq('status', 'accepted').then(count),
         trades().eq('status', 'pending').then(count),
       ]);
-      return { settings, rarities, sets, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
+      return { settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
     },
     // La photo et sa vignette éventuelles sont envoyées d'abord, les anciennes supprimées une fois la carte enregistrée
     async saveCard(card, photo, old) {
@@ -143,6 +150,11 @@ function createSupabaseAdminApi(): AdminApi {
       else ok(await sb.from('card_sets').insert({ name, in_boosters }).select().single());
     },
     deleteSet: async id => { ok(await sb.from('card_sets').delete().eq('id', id)); },
+    async saveSubtitle({ id, label }) {
+      if (id) ok(await sb.from('card_subtitles').update({ label }).eq('id', id).select().single());
+      else ok(await sb.from('card_subtitles').insert({ label }).select().single());
+    },
+    deleteSubtitle: async id => { ok(await sb.from('card_subtitles').delete().eq('id', id)); },
     saveRarities: async list => { ok(await sb.from('rarities').upsert(list).select()); },
     deleteRarity: async id => { ok(await sb.from('rarities').delete().eq('id', id)); },
     saveSettings: async st => { ok(await sb.from('game_settings').update(st).eq('id', true).select().single()); },
@@ -165,6 +177,7 @@ interface DemoDb {
   settings: Settings;
   rarities: Rarity[];
   sets: CardSet[];
+  subtitles: Subtitle[];
   cards: Card[];
   profiles: Profile[];
   owned: Record<string, Record<number, number>>;
@@ -180,7 +193,7 @@ interface DemoDb {
 
 function createDemoAdminApi(): AdminApi {
   const KEY = 'cartes-club-admin-demo-react-v1';
-  const VERSION = 3; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise
+  const VERSION = 4; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise ; 4 : sous-titres
   const fail = (msg: string): never => { throw new Error(msg); };
   let db: DemoDb;
   const save = () => writeStore(KEY, db);
@@ -195,6 +208,7 @@ function createDemoAdminApi(): AdminApi {
     db = {
       version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
+      subtitles: [...new Set([...DEMO_SUBTITLES, ...DEMO_CARDS.map(c => c.subtitle).filter((s): s is string => !!s)])].map((label, i) => ({ id: i + 1, label })),
       profiles: [
         ...[{ id: 'demo-admin', username: 'Toi' }, ...DEMO_MEMBERS].map((p, i): Profile => ({
           ...p, status: 'active', last_free_booster_at: i % 2 ? new Date(Date.now() - (i + 2) * 36e5).toISOString() : null, created_at: ago(30 - i),
@@ -241,7 +255,7 @@ function createDemoAdminApi(): AdminApi {
       for (const [uid, o] of Object.entries(db.owned)) for (const [cid, q] of Object.entries(o)) userCards.push({ user_id: uid, card_id: +cid, quantity: q });
       const week = Date.now() - 7 * 864e5;
       return clone({
-        settings: db.settings, rarities: db.rarities, sets: db.sets, cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
+        settings: db.settings, rarities: db.rarities, sets: db.sets, subtitles: db.subtitles, cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
         codes: [...db.codes].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         recent: [...db.openings].sort((a, b) => b.opened_at.localeCompare(a.opened_at)).slice(0, 12),
         signupCode: db.signupCode,
@@ -277,6 +291,21 @@ function createDemoAdminApi(): AdminApi {
     async deleteSet(id) {
       if (db.cards.some(c => c.set_id === id)) fail('Cette série contient encore des cartes.');
       db.sets = db.sets.filter(s => s.id !== id);
+      save();
+    },
+    async saveSubtitle({ id, label }) {
+      if (db.subtitles.some(s => s.label === label && s.id !== id)) fail('Ce sous-titre existe déjà.');
+      const existing = id ? db.subtitles.find(s => s.id === id) : undefined;
+      if (existing) {
+        for (const c of db.cards) if (c.subtitle === existing.label) c.subtitle = label;
+        existing.label = label;
+      } else db.subtitles.push({ id: db.nextId++, label });
+      save();
+    },
+    async deleteSubtitle(id) {
+      const label = db.subtitles.find(s => s.id === id)?.label;
+      for (const c of db.cards) if (c.subtitle === label) c.subtitle = null;
+      db.subtitles = db.subtitles.filter(s => s.id !== id);
       save();
     },
     async saveRarities(list) {

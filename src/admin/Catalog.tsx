@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { Card, CardSet, Rarity } from '../lib/types';
+import type { Card, CardSet, Rarity, Subtitle } from '../lib/types';
 import { plural } from '../lib/format';
 import { CardView, Gems } from '../components/visuals';
 import { EFFECTS, LookupContext, RarityStyles, colorOf, fxClass, fxInfo, fxOf, isHex } from '../lib/lookup';
@@ -78,6 +78,80 @@ function RenameSet({ set, onClose }: { set: CardSet; onClose: () => void }) {
       <form className="field" onSubmit={e => { e.preventDefault(); void save(); }}>
         <label htmlFor="set-name">Nouveau nom</label>
         <input id="set-name" className="input" value={name} onChange={e => setName(e.target.value)} required maxLength={60} />
+      </form>
+    </Modal>
+  );
+}
+
+/* ----------------------------- Sous-titres ---------------------------- */
+export function SubtitlesAdmin() {
+  const { api, d, refresh } = useAdmin();
+  const run = useRunner();
+  const confirm = useConfirm();
+  const [label, setLabel] = useState('');
+  const [renaming, setRenaming] = useState<Subtitle | null>(null);
+  const uses = (s: Subtitle) => d.cards.filter(c => c.subtitle === s.label).length;
+
+  async function create(e: FormEvent) {
+    e.preventDefault();
+    const l = label.trim();
+    if (l && await run(() => api.saveSubtitle({ label: l }), `Sous-titre « ${l} » créé`)) { setLabel(''); await refresh(); }
+  }
+  async function remove(s: Subtitle) {
+    const n = uses(s);
+    const msg = n ? `Le sous-titre « ${s.label} » sera supprimé et retiré de ${plural(n, 'carte', 'cartes')}.` : `Le sous-titre « ${s.label} » sera supprimé.`;
+    if (!(await confirm.ask('Supprimer le sous-titre', msg, 'Supprimer'))) return;
+    if (await run(() => api.deleteSubtitle(s.id), 'Sous-titre supprimé')) await refresh();
+  }
+
+  return (
+    <>
+      <div className="view-head"><h2 className="h2">Sous-titres</h2></div>
+      <p className="lead">Les sous-titres proposés dans l'éditeur de cartes : poste, action, moment… Renommer un sous-titre met à jour toutes les cartes qui l'utilisent ; le supprimer le leur retire.</p>
+      <form className="toolbar" onSubmit={create}>
+        <input className="input grow-input" placeholder="Nouveau sous-titre, ex. Réceptionneuse" required maxLength={40} value={label} onChange={e => setLabel(e.target.value)} />
+        <button className="btn primary">Créer le sous-titre</button>
+      </form>
+      <div className="table-wrap"><table className="tbl">
+        <thead><tr><th>Sous-titre</th><th className="num">Cartes</th><th><span className="sr-only">Actions</span></th></tr></thead>
+        <tbody>
+          {!d.subtitles.length && <tr><td className="empty-cell" colSpan={3}>Aucun sous-titre pour l'instant.</td></tr>}
+          {d.subtitles.map(s => (
+            <tr key={s.id}>
+              <td><strong>{s.label}</strong></td>
+              <td className="num">{uses(s)}</td>
+              <td className="actions">
+                <button className="btn small" onClick={() => setRenaming(s)}>Renommer</button>{' '}
+                <button className="btn small danger" onClick={() => void remove(s)}>Supprimer</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+      {renaming && <RenameSubtitle subtitle={renaming} onClose={() => setRenaming(null)} />}
+      {confirm.element}
+    </>
+  );
+}
+
+function RenameSubtitle({ subtitle, onClose }: { subtitle: Subtitle; onClose: () => void }) {
+  const { api, d, refresh } = useAdmin();
+  const run = useRunner();
+  const [label, setLabel] = useState(subtitle.label);
+  const n = d.cards.filter(c => c.subtitle === subtitle.label).length;
+  async function save() {
+    const l = label.trim();
+    if (!l) return;
+    if (l === subtitle.label) { onClose(); return; }
+    if (await run(() => api.saveSubtitle({ id: subtitle.id, label: l }), 'Sous-titre renommé')) { onClose(); await refresh(); }
+  }
+  return (
+    <Modal title="Renommer le sous-titre" onClose={onClose}
+      footer={<span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" onClick={() => void save()}>Enregistrer</button></span>}>
+      <form className="field" onSubmit={e => { e.preventDefault(); void save(); }}>
+        <label htmlFor="subtitle-label">Nouveau nom</label>
+        <input id="subtitle-label" className="input" value={label} onChange={e => setLabel(e.target.value)} required maxLength={40} />
+        {n > 0 && <p className="hint">{plural(n, 'carte sera mise', 'cartes seront mises')} à jour.</p>}
       </form>
     </Modal>
   );

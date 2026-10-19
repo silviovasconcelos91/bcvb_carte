@@ -10,7 +10,6 @@ import type { CardInput, Photo } from '../api/admin';
 import { useAdmin } from './context';
 
 const STAT_KEYS = ['service', 'attaque', 'reception', 'bloc', 'passe', 'defense', 'tactique'];
-const SUBTITLES = ['Passeur', 'Passeuse', 'Libéro', 'Central', 'Centrale', 'Pointu', 'Pointue', 'Réceptionneur-attaquant', 'Réceptionneuse-attaquante', 'Capitaine', 'Entraîneur', 'Entraîneuse', 'Action', 'Moment', 'Lieu', 'Équipement'];
 const PHOTO = 720; // côté du carré exporté, en pixels
 const THUMB = 240; // côté de la vignette des petits affichages
 
@@ -217,7 +216,7 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
                 {d.rarities.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
               </select></span></label>
             </div>
-            <datalist id="subtitles">{SUBTITLES.map(s => <option key={s} value={s} />)}</datalist>
+            <datalist id="subtitles">{d.subtitles.map(s => <option key={s.id} value={s.label} />)}</datalist>
             <fieldset className="fs">
               <legend>Statistiques</legend>
               <p className="hint">Facultatives, notées sur 10. Une carte sans statistiques affiche sa description à la place.</p>

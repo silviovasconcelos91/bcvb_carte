@@ -56,7 +56,7 @@ create table if not exists public.rarities (
   label  text not null,
   weight numeric not null check (weight >= 0),     -- poids relatif au tirage (0 = jamais)
   is_secret boolean not null default false,        -- true = rareté masquée tant que la carte n'est pas obtenue
-  effect smallint not null default 1 check (effect between 1 and 15),  -- effet visuel, voir EFFECTS dans src/lib/lookup.tsx
+  effect smallint not null default 1 check (effect between 1 and 17),  -- effet visuel, voir EFFECTS dans src/lib/lookup.tsx
   color  text check (color ~ '^#[0-9A-Fa-f]{6}$'),  -- couleur de l'effet (null = couleur par défaut de l'effet)
   gems   smallint check (gems between 0 and 10),   -- nombre de losanges (null = selon l'effet)
   badge  text check (char_length(badge) between 1 and 12)  -- texte affiché à la place des losanges (★, SR…)
@@ -189,13 +189,13 @@ alter table public.rarities      add column if not exists is_secret boolean not 
 do $$
 begin
   if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'rarities' and column_name = 'effect') then
-    alter table public.rarities add column effect smallint not null default 1 check (effect between 1 and 15);
+    alter table public.rarities add column effect smallint not null default 1 check (effect between 1 and 17);
     update public.rarities set effect = least(greatest(id, 1), 6);
   end if;
 end $$;
--- 15 effets disponibles (une version précédente de ce script en autorisait 6)
+-- 17 effets disponibles (des versions précédentes de ce script en autorisaient 6 puis 15)
 alter table public.rarities drop constraint if exists rarities_effect_check;
-alter table public.rarities add constraint rarities_effect_check check (effect between 1 and 15);
+alter table public.rarities add constraint rarities_effect_check check (effect between 1 and 17);
 alter table public.rarities      add column if not exists color text check (color ~ '^#[0-9A-Fa-f]{6}$');
 -- Losanges des raretés : nombre, ou texte à la place
 alter table public.rarities      add column if not exists gems smallint check (gems between 0 and 10);
@@ -923,6 +923,47 @@ create policy "Admin : modifier les raretés" on public.rarities
 drop policy if exists "Admin : supprimer des raretés" on public.rarities;
 create policy "Admin : supprimer des raretés" on public.rarities
   for delete to authenticated using ((select public.is_admin()));
+
+-- Sous-titres proposés dans l'éditeur de cartes (réservés aux administrateurs).
+-- La carte garde le texte : renommer un sous-titre met à jour ses cartes, le supprimer le leur retire.
+create table if not exists public.card_subtitles (
+  id    int generated always as identity primary key,
+  label text not null unique check (char_length(label) between 1 and 40)
+);
+revoke all on public.card_subtitles from anon, authenticated;
+grant select, insert, update, delete on public.card_subtitles to authenticated;
+alter table public.card_subtitles enable row level security;
+drop policy if exists "Admin : gérer les sous-titres" on public.card_subtitles;
+create policy "Admin : gérer les sous-titres" on public.card_subtitles
+  for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create or replace function public.card_subtitles_sync()
+returns trigger
+language plpgsql set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and new.label is distinct from old.label then
+    update public.cards set subtitle = new.label where subtitle = old.label;
+  elsif tg_op = 'DELETE' then
+    update public.cards set subtitle = null where subtitle = old.label;
+  end if;
+  return null;
+end $$;
+drop trigger if exists card_subtitles_sync on public.card_subtitles;
+create trigger card_subtitles_sync after update or delete on public.card_subtitles
+  for each row execute function public.card_subtitles_sync();
+
+-- Liste de départ : postes et types habituels, plus les sous-titres déjà utilisés
+insert into public.card_subtitles (label)
+select label from unnest(array['Passeur', 'Passeuse', 'Libéro', 'Central', 'Centrale', 'Pointu', 'Pointue',
+  'Réceptionneur-attaquant', 'Réceptionneuse-attaquante', 'Capitaine', 'Entraîneur', 'Entraîneuse',
+  'Action', 'Moment', 'Lieu', 'Équipement']) with ordinality as t(label, n)
+where not exists (select 1 from public.card_subtitles)
+order by n
+on conflict (label) do nothing;
+insert into public.card_subtitles (label)
+select distinct trim(subtitle) from public.cards where char_length(trim(coalesce(subtitle, ''))) between 1 and 40
+on conflict (label) do nothing;
 
 drop policy if exists "Admin : modifier les réglages" on public.game_settings;
 create policy "Admin : modifier les réglages" on public.game_settings

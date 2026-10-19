@@ -10,6 +10,9 @@ export const DEMO_RARITIES: Rarity[] = [
   { id: 6, code: 'secret', label: 'Secrète', weight: 0.5, is_secret: true, effect: 6, color: null },
 ];
 
+// Sous-titres de départ de la console (même liste que supabase/schema.sql)
+export const DEMO_SUBTITLES = ['Passeur', 'Passeuse', 'Libéro', 'Central', 'Centrale', 'Pointu', 'Pointue', 'Réceptionneur-attaquant', 'Réceptionneuse-attaquante', 'Capitaine', 'Entraîneur', 'Entraîneuse', 'Action', 'Moment', 'Lieu', 'Équipement'];
+
 export const DEMO_SETS: CardSet[] = [
   { id: 1, name: 'Saison 2026-27', in_boosters: true },
   { id: 2, name: 'Tournoi de Noël', in_boosters: false },

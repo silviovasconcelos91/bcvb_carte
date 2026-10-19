@@ -9,12 +9,12 @@ import { ConfigError, SignInForm } from '../components/AuthForms';
 import { AdminContext, indexAdmin, type AdminCtx, type AdminIndex, type AdminTab } from './context';
 import { Dashboard } from './Dashboard';
 import { CardsAdmin } from './Cards';
-import { RaritiesAdmin, SetsAdmin } from './Catalog';
+import { RaritiesAdmin, SetsAdmin, SubtitlesAdmin } from './Catalog';
 import { CodesAdmin } from './Codes';
 import { MembersAdmin, SettingsAdmin } from './Members';
 import '../styles/admin.css';
 
-const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['sets', 'Séries'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['members', 'Membres'], ['settings', 'Réglages']];
+const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['sets', 'Séries'], ['subtitles', 'Sous-titres'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['members', 'Membres'], ['settings', 'Réglages']];
 
 let apiSingleton: AdminApi | null = null;
 const getApi = () => (apiSingleton ??= createAdminApi());
@@ -113,6 +113,7 @@ export default function AdminApp() {
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'cards' && <CardsAdmin />}
           {tab === 'sets' && <SetsAdmin />}
+          {tab === 'subtitles' && <SubtitlesAdmin />}
           {tab === 'rarities' && <RaritiesAdmin />}
           {tab === 'codes' && <CodesAdmin />}
           {tab === 'members' && <MembersAdmin />}

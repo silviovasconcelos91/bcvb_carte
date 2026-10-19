@@ -6,10 +6,16 @@ export interface Rarity {
   label: string;
   weight: number;
   is_secret: boolean;
-  effect: number; // 1 à 15, voir EFFECTS dans lib/lookup.tsx
+  effect: number; // 1 à 17, voir EFFECTS dans lib/lookup.tsx
   color: string | null; // #rrggbb, sinon couleur par défaut de l'effet
   gems?: number | null; // nombre de losanges (0 à 10), sinon selon l'effet ; absent sur une base pas encore mise à jour
   badge?: string | null; // texte affiché à la place des losanges
+}
+
+// Sous-titre proposé dans l'éditeur de cartes (console uniquement)
+export interface Subtitle {
+  id: number;
+  label: string;
 }
 
 export interface CardSet {

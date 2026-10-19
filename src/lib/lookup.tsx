@@ -52,14 +52,16 @@ export const EFFECTS = [
   { id: 8, level: 4, label: 'Néon', desc: 'Cadre noir et tube néon qui grésille', color: '#FF2E88' },
   { id: 11, level: 4, label: 'Chrome', desc: 'Métal poli aux reflets mouvants, illustration brossée', color: '#8A9BB0' },
   { id: 14, level: 4, label: 'Glitch', desc: "Lignes de balayage, l'illustration se dédouble par instants", color: '#00C2E0' },
+  { id: 16, level: 4, label: 'Verre brisé', desc: "Vitre étoilée depuis un point d'impact, reflet qui court dans les fissures", color: '#7FB8E6' },
   { id: 5, level: 5, label: 'Éclat', desc: 'Bande holo sur toute la carte, paillettes, pluie de pièces', color: '#E3A008' },
   { id: 9, level: 5, label: 'Galaxie', desc: 'Cadre étoilé, nébuleuse qui dérive, étoiles scintillantes', color: '#6A4CFF' },
   { id: 10, level: 5, label: 'Flamme', desc: 'Flammes qui dansent au pied de la carte, braises qui montent', color: '#FF5A1F' },
   { id: 13, level: 5, label: 'Aurore', desc: "Voiles d'aurore boréale qui ondulent sur un ciel de nuit", color: '#22D3A6' },
   { id: 15, level: 5, label: 'Obsidienne', desc: 'Pierre noire veinée de lumière, halo qui pulse', color: '#B026FF' },
+  { id: 17, level: 5, label: 'Côté obscur', desc: "Une ombre gagne la moitié du visage, l'illustration s'assombrit, fumée sur les bords", color: '#C1121F' },
   { id: 6, level: 6, label: 'Prisme', desc: 'Cadre sombre, prisme arc-en-ciel animé, confettis', color: '#8660FF' },
 ] as const;
-export const MAX_EFFECT = 15;
+export const MAX_EFFECT = 17;
 const effectById = new Map<number, (typeof EFFECTS)[number]>(EFFECTS.map(e => [e.id, e]));
 export const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 
