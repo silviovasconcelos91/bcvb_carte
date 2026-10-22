@@ -24,7 +24,7 @@ export function ProposeView() {
   async function load() {
     const list = await api.myProposals();
     const paths = list.flatMap(p => [p.thumb_path, p.image_path]);
-    const signed = paths.length ? await api.imageUrls(paths) : {};
+    const signed = paths.length ? await api.imageUrls(paths).catch(() => ({} as Record<string, string>)) : {};
     setUrls(signed);
     setProposals(list);
   }
@@ -64,12 +64,14 @@ export function ProposeView() {
       setDraft(draftFrom(null, firstRarity));
       photo.clear();
       setError(null);
-      await load();
     } catch (e) {
       toast(errMsg(e), true);
+      return;
     } finally {
       setBusy(false);
     }
+    // Envoi réussi : une erreur de rechargement ne doit pas passer pour un échec de l'envoi
+    load().catch(e => setError(errMsg(e)));
   }
 
   return (
