@@ -49,6 +49,13 @@ export interface CatalogRow {
   owned: boolean;
 }
 
+// Ligne de leaderboard() : cartes différentes d'un membre dans une série, secrètes comprises
+export interface LeaderRow {
+  user_id: string;
+  username: string;
+  distinct_count: number;
+}
+
 export type MemberStatus = 'active' | 'pending';
 
 export interface Profile {

@@ -1,5 +1,5 @@
 import { DEMO } from '../config';
-import type { Card, CardRef, CardSet, CatalogRow, DrawnCard, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
+import type { Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
@@ -33,6 +33,8 @@ export interface GameApi {
   declineTrade(id: number): Promise<void>;
   counterTrade(id: number, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   cancelTrade(id: number): Promise<void>;
+  // Classement d'une série active : membres ayant au moins une carte, du meilleur au moins bon
+  leaderboard(setId: number): Promise<LeaderRow[]>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
   // mode démo uniquement
   demo?: {
@@ -90,6 +92,7 @@ function createSupabaseGameApi(): GameApi {
     declineTrade: async id => { await rpc('decline_trade', { p_trade_id: id }); },
     counterTrade: (id, offer, request, message) => rpc<number>('counter_trade', { p_trade_id: id, p_offer: offer, p_request: request, p_message: message || null }),
     cancelTrade: async id => { await rpc('cancel_trade', { p_trade_id: id }); },
+    leaderboard: setId => rpc<LeaderRow[]>('leaderboard', { p_set_id: setId }),
     imageUrls: signedUrls,
   };
 }
@@ -283,6 +286,16 @@ function createDemoGameApi(): GameApi {
       const t = db.trades.find(x => x.id === id && x.proposer_id === db.current && x.status === 'pending') ?? fail('Échange introuvable ou déjà traité');
       Object.assign(t, { status: 'cancelled', resolved_at: nowIso() });
       save();
+    },
+    // Comme leaderboard() : cartes publiées d'une série active, secrètes comprises, membres actifs seulement
+    async leaderboard(setId) {
+      if (!db.sets.some(s => s.id === setId && s.in_boosters)) return [];
+      const inSet = new Set(db.cards.filter(c => c.set_id === setId && c.is_released).map(c => c.id));
+      return db.profiles
+        .filter(p => p.status === 'active')
+        .map(p => ({ user_id: p.id, username: p.username, distinct_count: Object.keys(inv(p.id)).filter(cid => inSet.has(+cid)).length }))
+        .filter(r => r.distinct_count > 0)
+        .sort((a, b) => b.distinct_count - a.distinct_count || a.username.localeCompare(b.username));
     },
     async imageUrls() { return {}; },
     demo: {

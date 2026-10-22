@@ -403,6 +403,35 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .card.back .card-body { padding: 0; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), var(--club-deep); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .24), 0 10px 22px -8px rgba(0, 0, 0, .7); }
 .back-art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 
+/* ---------- Classement ---------- */
+.lb-title { margin: 0; font: 800 34px/1.05 var(--font-c); }
+.lb-lead { margin: 4px 0 0; color: var(--muted); }
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 10px; margin: 8px 0 22px; padding: 0; list-style: none; }
+.podium-step { display: flex; flex: 0 1 140px; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.podium-step.at1 { order: 2; }
+.podium-step.at2 { order: 1; }
+.podium-step.at3 { order: 3; }
+.podium-name { max-width: 100%; overflow: hidden; font: 700 18px/1.15 var(--font-c); text-overflow: ellipsis; white-space: nowrap; }
+.podium-block { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; width: 100%; padding-top: 10px; border-radius: 12px 12px 0 0; background: var(--surface-2); }
+.podium-step.p1 .podium-block { height: 132px; background: color-mix(in srgb, #E3A008 26%, var(--surface)); }
+.podium-step.p2 .podium-block { height: 100px; background: color-mix(in srgb, #8C97A6 30%, var(--surface)); }
+.podium-step.p3 .podium-block { height: 76px; background: color-mix(in srgb, #B8733A 28%, var(--surface)); }
+.podium-step[aria-current] .avatar { box-shadow: 0 0 0 3px var(--accent); }
+.podium-medal { font-size: 26px; line-height: 1; }
+.podium-count { font: 800 30px/1 var(--font-c); font-variant-numeric: tabular-nums; }
+.podium-count small { color: var(--muted); font-size: 17px; font-weight: 700; }
+.lb-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.lb-row { display: grid; grid-template-columns: 2.2em minmax(0, 9em) 1fr auto; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; background: var(--surface); }
+.lb-row[aria-current] { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); font-weight: 700; }
+.lb-rank { color: var(--muted); font: 700 18px/1 var(--font-c); text-align: right; font-variant-numeric: tabular-nums; }
+.lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-bar { height: 8px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
+.lb-bar span { display: block; height: 100%; border-radius: inherit; background: var(--club); }
+.lb-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.lb-count b { color: var(--text); }
+.lb-gap { margin: 4px 0; color: var(--muted); text-align: center; }
+.lb-me-none { margin-top: 14px; text-align: center; }
+
 /* ---------- Collection ---------- */
 .score { display: grid; grid-template-columns: auto 1fr; align-items: end; gap: 0 14px; }
 .score-line { display: flex; align-items: baseline; margin: 0; }

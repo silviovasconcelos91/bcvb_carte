@@ -27,7 +27,7 @@ export function indexGame(d: GameData, uid: string, urls: Record<string, string>
   return { ...d, cardById, profileById, owned, mine: owned.get(uid) ?? new Map(), me, lookup: makeLookup(d.rarities, d.sets, d.cards, urls) };
 }
 
-export type Tab = 'booster' | 'collection' | 'trades';
+export type Tab = 'booster' | 'collection' | 'trades' | 'leaderboard';
 
 export interface GameCtx {
   api: GameApi;

@@ -11,6 +11,7 @@ import { Header, DemoStrip } from './Header';
 import { BoosterView } from './BoosterView';
 import { CollectionView } from './CollectionView';
 import { TradesView } from './TradesView';
+import { LeaderboardView } from './LeaderboardView';
 import { CardDetail } from './CardDetail';
 import { Composer, type ComposerOpts } from './Composer';
 import { Reveal } from './Reveal';
@@ -159,6 +160,7 @@ export default function GameApp() {
           {tab === 'booster' && <BoosterView />}
           {tab === 'collection' && <CollectionView />}
           {tab === 'trades' && <TradesView />}
+          {tab === 'leaderboard' && <LeaderboardView />}
         </main>
         {detailId != null && <CardDetail id={detailId} onClose={() => setDetailId(null)} />}
         {composer && <Composer opts={composer} onClose={() => setComposer(null)} />}
