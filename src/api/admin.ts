@@ -87,6 +87,13 @@ function createSupabaseAdminApi(): AdminApi {
     return n ?? 0;
   };
   const store = () => sb.storage.from(CONFIG.bucket);
+  // Photos à effacer : la carte est déjà enregistrée, un échec ne doit pas faire croire le contraire ;
+  // il est seulement signalé, le fichier restant orphelin dans le bucket
+  const removeFiles = async (paths: string[]) => {
+    if (!paths.length) return;
+    const { error } = await store().remove(paths);
+    if (error) console.warn('Photos non supprimées du stockage :', paths, error.message);
+  };
   return {
     mode: 'supabase',
     init: watchSession,
@@ -134,16 +141,16 @@ function createSupabaseAdminApi(): AdminApi {
         if (id) ok(await sb.from('cards').update(row).eq('id', id).select().single());
         else ok(await sb.from('cards').insert(row).select().single());
       } catch (e) {
-        if (sent.length) await store().remove(sent);
+        await removeFiles(sent);
         throw e;
       }
       const stale = old ? filesOf(old).filter(p => !filesOf(paths).includes(p)) : [];
-      if (stale.length) await store().remove(stale);
+      await removeFiles(stale);
     },
     async deleteCard(card) {
       ok(await sb.from('cards').delete().eq('id', card.id));
       const files = filesOf(card);
-      if (files.length) await store().remove(files);
+      await removeFiles(files);
     },
     async saveSet({ id, name, in_boosters }) {
       if (id) ok(await sb.from('card_sets').update({ name, in_boosters }).eq('id', id).select().single());

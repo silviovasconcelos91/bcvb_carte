@@ -54,14 +54,16 @@ export default function AdminApp() {
 
   useEffect(() => {
     let alive = true;
-    api.init(next => { if (alive) void enter(next); })
+    api.init(next => { if (alive) enter(next).catch(e => setLoadError(errMsg(e))); })
       .then(async who => { if (alive) await enter(who); })
       .catch(e => setLoadError(errMsg(e)))
       .finally(() => { if (alive) setBooting(false); });
     return () => { alive = false; };
   }, [api, enter]);
 
-  const logout = async () => { await api.logout(); await enter(null); };
+  const logout = async () => {
+    try { await api.logout(); await enter(null); } catch (e) { setLoadError(errMsg(e)); }
+  };
 
   const ctx = useMemo<AdminCtx | null>(() => (uid && d ? {
     api, d, refresh: () => load(uid), setTab: (t: AdminTab) => { setTabState(t); window.scrollTo(0, 0); },

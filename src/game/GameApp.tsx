@@ -53,14 +53,14 @@ export default function GameApp() {
   useEffect(() => { document.title = `Cartes du ${CONFIG.clubName}`; }, []);
 
   // Le profil est lu d'abord : un compte en attente ne voit ni le catalogue ni les autres membres
-  const load = useCallback(async (who: string): Promise<boolean> => {
+  const load = useCallback(async (who: string): Promise<'ready' | 'pending' | 'error'> => {
     try {
       const me = await api.myProfile(who);
       if (me?.status === 'pending') {
         setPending(me);
         setD(null);
         setLoadError(null);
-        return false;
+        return 'pending';
       }
       setPending(null);
       const raw = await api.load();
@@ -68,11 +68,12 @@ export default function GameApp() {
       const urls = paths.length ? await api.imageUrls(paths) : {};
       setD(indexGame(raw, who, urls));
       setLoadError(null);
-      return true;
+      return 'ready';
     } catch (e) {
       setD(null);
+      setPending(null); // sinon l'écran « en attente » masquerait l'erreur
       setLoadError(errMsg(e));
-      return false;
+      return 'error';
     }
   }, [api]);
 
@@ -134,7 +135,7 @@ export default function GameApp() {
         <p className="login-lead">Ton compte attend la validation d'un responsable du club.</p>
         <p>Compte créé : <strong>{pending.username}</strong>. Reviens un peu plus tard, ou préviens un responsable du club.</p>
         <div className="login-actions">
-          <button className="btn primary" onClick={async () => { if (!(await load(uid))) toast('Ton compte est toujours en attente de validation.'); }}>Actualiser</button>
+          <button className="btn primary" onClick={async () => { if (await load(uid) === 'pending') toast('Ton compte est toujours en attente de validation.'); }}>Actualiser</button>
           <button className="btn ghost" onClick={() => void logout()}>Se déconnecter</button>
         </div>
       </div></main>

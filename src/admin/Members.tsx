@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { CONFIG } from '../config';
 import type { MemberStatus, Profile } from '../lib/types';
-import { fmtDuration, freeBoosters, intervalMs, sumValues } from '../lib/format';
+import { fmtDuration, freeBoosters, intervalMs, randomChars, sumValues } from '../lib/format';
 import { Avatar } from '../components/visuals';
 import { useRunner, useToast } from '../components/Toasts';
 import { Modal } from '../components/Modal';
@@ -59,7 +59,7 @@ export function MembersAdmin() {
 // Mot de passe perdu : l'administrateur en donne un nouveau, à transmettre au membre de vive voix
 const PW_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789'; // sans i, l, o, 0 ni 1, faciles à confondre
 function randomPassword(): string {
-  const chars = [...crypto.getRandomValues(new Uint8Array(12))].map(b => PW_CHARS[b % PW_CHARS.length]).join('');
+  const chars = randomChars(PW_CHARS, 12);
   return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
 }
 
@@ -121,13 +121,16 @@ export function SettingsAdmin() {
   const { api, d } = useAdmin();
   const runRefresh = useRunRefresh();
   const [size, setSize] = useState(String(d.settings.booster_size));
-  const [hours, setHours] = useState(String(Math.round(intervalMs(d.settings.free_booster_cooldown) / 36e5)));
+  const shownHours = String(Math.round(intervalMs(d.settings.free_booster_cooldown) / 36e5));
+  const [hours, setHours] = useState(shownHours);
   const [stock, setStock] = useState(String(d.settings.free_booster_max ?? 1));
   const [busy, setBusy] = useState(false);
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: `${Math.max(1, +hours)} hours`, free_booster_max: Math.max(1, Math.min(10, +stock)) };
+    // Délai non modifié : la valeur exacte de la base est gardée (ex. « 90 minutes »), sans arrondi en heures
+    const cooldown = hours === shownHours ? d.settings.free_booster_cooldown : `${Math.max(1, +hours)} hours`;
+    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: cooldown, free_booster_max: Math.max(1, Math.min(10, +stock)) };
     await runRefresh(() => api.saveSettings(st), 'Réglages enregistrés');
     setBusy(false);
   }
@@ -149,8 +152,7 @@ export function SettingsAdmin() {
 // Code d'inscription du club : lisible et modifiable par les administrateurs seulement
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans I, O, 0 ni 1, faciles à confondre
 function randomCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(8));
-  const chars = [...bytes].map(b => CODE_CHARS[b % CODE_CHARS.length]).join('');
+  const chars = randomChars(CODE_CHARS, 8);
   return `${CONFIG.clubShort.toUpperCase()}-${chars.slice(0, 4)}-${chars.slice(4)}`;
 }
 

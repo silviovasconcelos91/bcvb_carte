@@ -202,7 +202,8 @@ export function RaritiesAdmin() {
     setSel(id);
   }
   async function remove(r: RarRow) {
-    const drop = () => { setRows(rs => rs.filter(x => x.id !== r.id)); if (sel === r.id) setSel(rows[0]?.id ?? 1); };
+    // La sélection passe à la première rareté restante, pas à celle qu'on supprime
+    const drop = () => { setRows(rs => rs.filter(x => x.id !== r.id)); if (sel === r.id) setSel(rows.find(x => x.id !== r.id)?.id ?? 1); };
     if (r.isNew) { drop(); return; }
     if (!(await confirm.ask('Supprimer la rareté', `La rareté « ${r.label} » sera supprimée.`, 'Supprimer'))) return;
     if (await run(() => api.deleteRarity(r.id), 'Rareté supprimée')) { drop(); await refresh(); }

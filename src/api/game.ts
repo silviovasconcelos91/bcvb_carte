@@ -60,7 +60,8 @@ export function mergeCatalog(catalog: CatalogRow[], known: Card[]): Card[] {
 }
 
 const PROFILE_COLS = 'id, username, status, last_free_booster_at';
-const renameError = (m: string) => (/check constraint|violates/i.test(m) ? 'Le pseudo doit faire entre 2 et 30 caractères.' : m);
+// Seule la contrainte de longueur du pseudo est traduite ; les autres erreurs (droits, réseau…) restent telles quelles
+const renameError = (m: string) => (/check constraint/i.test(m) ? 'Le pseudo doit faire entre 2 et 30 caractères.' : m);
 
 /* ------------------------------ Supabase ------------------------------ */
 function createSupabaseGameApi(): GameApi {

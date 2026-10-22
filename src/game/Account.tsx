@@ -12,7 +12,7 @@ export function Account({ onClose, onLogout }: { onClose: () => void; onLogout: 
   const [login, setLogin] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { void api.loginId().then(setLogin); }, [api]);
+  useEffect(() => { api.loginId().then(setLogin, () => { /* identifiant indisponible : non affiché */ }); }, [api]);
 
   async function rename(e: FormEvent) {
     e.preventDefault();

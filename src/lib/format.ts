@@ -74,3 +74,16 @@ const STAT_LABELS: Record<string, string> = {
   defense: 'Défense', tactique: 'Tactique', temps_morts: 'Temps morts', patience: 'Patience',
 };
 export const statLabel = (k: string) => STAT_LABELS[k] || k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' ');
+
+// n caractères tirés au hasard (générateur cryptographique) dans `alphabet`, sans biais :
+// les octets au-delà du dernier multiple de la taille de l'alphabet sont rejetés
+export function randomChars(alphabet: string, n: number): string {
+  const limit = 256 - (256 % alphabet.length);
+  let out = '';
+  while (out.length < n) {
+    for (const b of crypto.getRandomValues(new Uint8Array(n * 2))) {
+      if (b < limit && out.length < n) out += alphabet[b % alphabet.length];
+    }
+  }
+  return out;
+}

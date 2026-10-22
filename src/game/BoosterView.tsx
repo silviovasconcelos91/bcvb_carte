@@ -22,7 +22,8 @@ export function BoosterView() {
   const st = d.settings;
   const cooldown = intervalMs(st.free_booster_cooldown);
   const hours = Math.round(cooldown / 36e5);
-  const every = hours % 24 === 0 ? (hours === 24 ? 'par jour' : `tous les ${hours / 24} jours`) : `toutes les ${hours} h`;
+  const every = cooldown < 36e5 ? `toutes les ${Math.round(cooldown / 6e4)} min`
+    : hours % 24 === 0 ? (hours === 24 ? 'par jour' : `tous les ${hours / 24} jours`) : `toutes les ${hours} h`;
   const { available, max, nextIn } = freeBoosters(d.me.last_free_booster_at, st);
   const status = !available ? `Le prochain sera disponible dans ${fmtDuration(nextIn)}.`
     : available >= max ? (max > 1 ? `Tes ${max} boosters sont prêts.` : 'Ton booster est prêt.')

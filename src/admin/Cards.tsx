@@ -139,7 +139,7 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
     const url = URL.createObjectURL(file);
     const im = new Image();
     im.onload = () => { setImg(im); setCrop({ zoom: 1, px: 50, py: 50 }); setRemoved(false); URL.revokeObjectURL(url); };
-    im.onerror = () => toast("Cette image n'a pas pu être lue.", true);
+    im.onerror = () => { URL.revokeObjectURL(url); toast("Cette image n'a pas pu être lue.", true); };
     im.src = url;
   }
 

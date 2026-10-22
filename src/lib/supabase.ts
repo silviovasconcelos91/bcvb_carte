@@ -74,12 +74,15 @@ export async function signedUrls(paths: string[]): Promise<Record<string, string
   return Object.fromEntries(paths.filter(p => urls[p]).map(p => [p, urls[p].url]));
 }
 
-// Session courante, puis suivi des connexions et déconnexions
+// Session courante, puis suivi des connexions et déconnexions.
+// Un seul suivi à la fois : un nouvel appel (remontage du composant) remplace le précédent.
+let stopWatching: (() => void) | null = null;
 export async function watchSession(onChange: (uid: string | null) => void): Promise<string | null> {
   const sb = getSupabase();
   const { data } = await sb.auth.getSession();
   let current = data.session?.user?.id ?? null;
-  sb.auth.onAuthStateChange((_event, session) => {
+  stopWatching?.();
+  const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
     const next = session?.user?.id ?? null;
     if (next !== current) {
       if (current) forgetUrls(current); // déconnexion ou changement de compte
@@ -87,6 +90,7 @@ export async function watchSession(onChange: (uid: string | null) => void): Prom
       setTimeout(() => onChange(next), 0); // jamais d'appel Supabase directement dans ce callback
     }
   });
+  stopWatching = () => subscription.unsubscribe();
   return current;
 }
 

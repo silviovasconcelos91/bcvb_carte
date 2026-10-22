@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import qrcode from 'qrcode-generator';
 import type { BoosterCode, Card } from '../lib/types';
 import { CONFIG } from '../config';
-import { fmtDateLong, pad2, stripAccents } from '../lib/format';
+import { fmtDateLong, pad2, randomChars, stripAccents } from '../lib/format';
 import { rarityLabel, rClass } from '../lib/lookup';
 import { CardView, Logo, MiniArt } from '../components/visuals';
 import { Modal } from '../components/Modal';
@@ -11,7 +11,7 @@ import { useRunner } from '../components/Toasts';
 import { CODE_STATUS, codeCard, codeCardUnreleased, codeReward, codeStatus, posterTitle, useAdmin, useRunRefresh } from './context';
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const newCode = () => `${CONFIG.clubShort}-` + Array.from({ length: 4 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
+const newCode = () => `${CONFIG.clubShort}-${randomChars(ALPHABET, 4)}`;
 const appUrl = () => CONFIG.appUrl || `${window.location.origin}/`;
 const fold = (s: string) => stripAccents(s).toLowerCase();
 const UNRELEASED_WARN = "Publie-la avant l'événement, sinon le code ne fonctionnera pas.";
