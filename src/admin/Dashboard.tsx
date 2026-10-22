@@ -30,6 +30,7 @@ export function Dashboard() {
   if (pool.length && empty.length) checks.push(['info', `Aucune carte à tirer en ${empty.map(r => r.label).join(', ')} : ces raretés sont ignorées au tirage pour l'instant.`, 'rarities']);
   const noPhoto = released.filter(c => !c.image_path && PLAYER.test(c.subtitle || '')).length;
   if (noPhoto) checks.push(['info', `${plural(noPhoto, 'carte de joueur publiée est', 'cartes de joueurs publiées sont')} encore sans photo.`, 'cards']);
+  if (d.proposals.length) checks.push(['info', plural(d.proposals.length, 'proposition de carte attend', 'propositions de cartes attendent') + ' ton avis.', 'proposals']);
   if (drafts) checks.push(['info', `${plural(drafts, 'carte est', 'cartes sont')} en préparation, ${drafts > 1 ? 'invisibles' : 'invisible'} pour les membres.`, 'cards']);
   const unreleased = activeCodes.filter(c => codeCardUnreleased(d, c));
   if (unreleased.length) checks.push(['err', `${plural(unreleased.length, 'code actif donne', 'codes actifs donnent')} une carte non publiée, ${unreleased.length > 1 ? 'ils ne fonctionneront' : 'il ne fonctionnera'} pas : ${unreleased.map(c => `${c.code} (${codeCard(d, c)!.name})`).join(', ')}.`, 'codes']);
