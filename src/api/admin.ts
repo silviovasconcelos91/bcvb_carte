@@ -1,5 +1,5 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Photo, Profile, Rarity, Settings, Subtitle, Trade, UserCard } from '../lib/types';
+import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Photo, Profile, Proposal, Rarity, Settings, Subtitle, Trade, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { PASSWORD_MIN, loginId, loginIdOf, signIn } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
@@ -16,6 +16,7 @@ export interface AdminData {
   codes: BoosterCode[];
   admins: string[];
   recent: Opening[];
+  proposals: Proposal[]; // cartes proposées par les membres, les plus anciennes d'abord
   trades: Trade[]; // tous les échanges du club, du plus récent au plus ancien
   signupCode: string | null; // code du club : un compte créé avec lui est actif tout de suite
   stats: { nOpen: number; nOpenWeek: number; nAccepted: number; nPending: number };
@@ -42,6 +43,8 @@ export interface AdminApi {
   load(): Promise<AdminData>;
   saveCard(card: CardInput, photo: Photo | null, old: CardPaths | null): Promise<void>;
   deleteCard(card: Card): Promise<void>;
+  refuseProposal(p: Proposal): Promise<void>; // supprime la proposition et ses photos
+  integrateProposal(p: Proposal, card: CardInput): Promise<void>; // crée la carte (en préparation) avec les photos de la proposition, puis supprime la proposition
   saveSet(set: Partial<CardSet> & { name: string; in_boosters: boolean }): Promise<void>;
   deleteSet(id: number): Promise<void>;
   saveSubtitle(s: Partial<Subtitle> & { label: string }): Promise<void>; // renommer met à jour les cartes qui l'utilisent
@@ -103,12 +106,14 @@ function createSupabaseAdminApi(): AdminApi {
       const week = new Date(Date.now() - 7 * 864e5).toISOString();
       const openings = () => sb.from('booster_openings').select('id', { count: 'exact', head: true });
       const tradeCount = () => sb.from('trades').select('id', { count: 'exact', head: true });
-      const [settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins, recent, trades, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
+      const [settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins, recent, trades, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => ok<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => ok<Rarity[]>(r)),
         sb.from('card_sets').select('*').order('id').then(r => ok<CardSet[]>(r)),
         // Base pas encore mise à jour : liste vide plutôt qu'une console bloquée
         sb.from('card_subtitles').select('*').order('id').then(r => (r.error ? [] : r.data as Subtitle[])),
+        // Idem si la table des propositions n'existe pas encore
+        sb.from('card_proposals').select('*').order('created_at').then(r => (r.error ? [] : r.data as Proposal[])),
         fetchAll<Card>(() => sb.from('cards').select('*').order('set_id').order('number')),
         fetchAll<Profile>(() => sb.from('profiles').select('id, username, status, last_free_booster_at, created_at').order('username')),
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
@@ -122,7 +127,7 @@ function createSupabaseAdminApi(): AdminApi {
         tradeCount().eq('status', 'accepted').then(count),
         tradeCount().eq('status', 'pending').then(count),
       ]);
-      return { settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, trades, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
+      return { settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, trades, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
     },
     // La photo et sa vignette éventuelles sont envoyées d'abord, les anciennes supprimées une fois la carte enregistrée
     async saveCard(card, photo, old) {
@@ -151,6 +156,16 @@ function createSupabaseAdminApi(): AdminApi {
       ok(await sb.from('cards').delete().eq('id', card.id));
       const files = filesOf(card);
       await removeFiles(files);
+    },
+    async refuseProposal(p) {
+      ok(await sb.from('card_proposals').delete().eq('id', p.id));
+      await removeFiles([p.image_path, p.thumb_path]);
+    },
+    // Carte créée en premier : si la suppression échoue ensuite, la proposition reste visible plutôt que perdue
+    async integrateProposal(p, card) {
+      const { id: _id, ...row } = card;
+      ok(await sb.from('cards').insert({ ...row, is_released: false, image_path: p.image_path, thumb_path: p.thumb_path }).select().single());
+      ok(await sb.from('card_proposals').delete().eq('id', p.id));
     },
     async saveSet({ id, name, in_boosters }) {
       if (id) ok(await sb.from('card_sets').update({ name, in_boosters }).eq('id', id).select().single());
@@ -185,6 +200,7 @@ interface DemoDb {
   rarities: Rarity[];
   sets: CardSet[];
   subtitles: Subtitle[];
+  proposals: Proposal[];
   cards: Card[];
   profiles: Profile[];
   owned: Record<string, Record<number, number>>;
@@ -201,7 +217,7 @@ interface DemoDb {
 
 function createDemoAdminApi(): AdminApi {
   const KEY = 'cartes-club-admin-demo-react-v1';
-  const VERSION = 5; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise ; 4 : sous-titres ; 5 : échanges
+  const VERSION = 6; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise ; 4 : sous-titres ; 5 : échanges ; 6 : propositions
   const fail = (msg: string): never => { throw new Error(msg); };
   let db: DemoDb;
   const save = () => writeStore(KEY, db);
@@ -225,7 +241,7 @@ function createDemoAdminApi(): AdminApi {
         { id: 'demo-pending-1', username: 'Jules', status: 'pending', last_free_booster_at: null, created_at: ago(0.1) },
         { id: 'demo-pending-2', username: 'Manon R.', status: 'pending', last_free_booster_at: null, created_at: ago(1.5) },
       ],
-      owned: {}, openings: [], trades: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
+      owned: {}, proposals: [], openings: [], trades: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
       codes: [
         { id: 1, code: 'MATCH-14NOV', label: 'Match à domicile du 14/11', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 18, expires_at: ago(-5), created_at: ago(2) },
         { id: 2, code: 'NOEL26', label: 'Tournoi de Noël', set_id: 2, card_count: null, card_id: null, max_uses: 60, uses_count: 41, expires_at: null, created_at: ago(1) },
@@ -237,6 +253,16 @@ function createDemoAdminApi(): AdminApi {
     // Carte d'événement encore en préparation : le tableau de bord signale son code
     db.codes.push({ id: 5, code: 'RECRUE', label: 'Nouvelle recrue', set_id: null, card_count: null, card_id: recruit, max_uses: null, uses_count: 0, expires_at: ago(-14), created_at: ago(0.2) });
     db.cards.push({ id: db.nextId++, set_id: 1, number: 20, name: 'Nouvelle recrue', subtitle: 'Centrale', rarity_id: 2, stats: { numero: 14, bloc: 8, attaque: 7, service: 5 }, description: null, image_path: null, thumb_path: null, is_released: false, in_boosters: true });
+    // Deux propositions de membres actifs (photos fictives : pas d'image en démo)
+    const normal = db.rarities.filter(x => !x.is_secret);
+    const proposers = db.profiles.filter(x => x.status === 'active' && x.id !== 'demo-admin');
+    db.proposals = [
+      { name: 'Le libéro du dimanche', subtitle: 'Libéro', description: 'Ne rate jamais une réception.', stats: { numero: 3, bloc: 4, attaque: 5, service: 6 }, days: 3 },
+      { name: 'Service canon', subtitle: null, description: null, stats: { numero: 9, bloc: 5, attaque: 7, service: 9 }, days: 1 },
+    ].map(({ days, ...x }, i) => {
+      const uid = proposers[i % proposers.length].id;
+      return { id: i + 1, user_id: uid, created_at: ago(days), ...x, rarity_id: normal[i % normal.length].id, image_path: `proposals/${uid}/demo-${i + 1}.jpg`, thumb_path: `proposals/${uid}/demo-${i + 1}.thumb.jpg` };
+    });
     let id = 1;
     for (const p of db.profiles.filter(x => x.status === 'active')) {
       const n = 2 + Math.floor(Math.random() * 6);
@@ -276,7 +302,7 @@ function createDemoAdminApi(): AdminApi {
       for (const [uid, o] of Object.entries(db.owned)) for (const [cid, q] of Object.entries(o)) userCards.push({ user_id: uid, card_id: +cid, quantity: q });
       const week = Date.now() - 7 * 864e5;
       return clone({
-        settings: db.settings, rarities: db.rarities, sets: db.sets, subtitles: db.subtitles, cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
+        settings: db.settings, rarities: db.rarities, sets: db.sets, subtitles: db.subtitles, proposals: [...db.proposals].sort((a, b) => a.created_at.localeCompare(b.created_at)), cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
         codes: [...db.codes].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         recent: [...db.openings].sort((a, b) => b.opened_at.localeCompare(a.opened_at)).slice(0, 12),
         trades: [...db.trades].sort((a, b) => b.created_at.localeCompare(a.created_at)),
@@ -302,6 +328,17 @@ function createDemoAdminApi(): AdminApi {
       if (used(card.id)) fail(friendly('delete on table "cards"'));
       db.cards = db.cards.filter(c => c.id !== card.id);
       for (const p of filesOf(card)) delete db.images[p];
+      save();
+    },
+    async refuseProposal(p) {
+      db.proposals = db.proposals.filter(x => x.id !== p.id);
+      save();
+    },
+    async integrateProposal(p, card) {
+      if (db.cards.some(c => c.set_id === card.set_id && c.number === card.number)) fail('Ce numéro est déjà pris dans cette série.');
+      const { id: _id, ...row } = clone(card);
+      db.cards.push({ ...row, is_released: false, image_path: p.image_path, thumb_path: p.thumb_path, id: db.nextId++ });
+      db.proposals = db.proposals.filter(x => x.id !== p.id);
       save();
     },
     async saveSet(set) {

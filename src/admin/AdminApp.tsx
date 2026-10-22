@@ -35,7 +35,7 @@ export default function AdminApp() {
   const load = useCallback(async (who: string) => {
     try {
       const raw = await api.load();
-      const paths = artPaths(raw.cards);
+      const paths = artPaths([...raw.cards, ...raw.proposals]);
       const urls = paths.length ? await api.imageUrls(paths) : {};
       setD(indexAdmin(raw, who, urls));
       setLoadError(null);
