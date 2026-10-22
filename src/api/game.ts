@@ -26,7 +26,8 @@ export interface GameApi {
   loginId(): Promise<string>;
   rename(uid: string, username: string): Promise<void>;
   changePassword(password: string, confirm: string): Promise<void>;
-  load(): Promise<GameData>;
+  // uid : le compte connecté ; seuls ses propres échanges sont chargés, même pour un administrateur
+  load(uid: string): Promise<GameData>;
   openBooster(code: string | null): Promise<DrawnCard[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   acceptTrade(id: number): Promise<TradeStatus>;
@@ -77,7 +78,7 @@ function createSupabaseGameApi(): GameApi {
     loginId: currentLoginId,
     rename: async (uid, username) => { must(await sb.from('profiles').update({ username }).eq('id', uid).select('id').single(), renameError); },
     changePassword,
-    async load() {
+    async load(uid) {
       const [settings, rarities, sets, catalog, known, profiles, userCards, trades] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => must<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => must<Rarity[]>(r)),
@@ -86,7 +87,7 @@ function createSupabaseGameApi(): GameApi {
         fetchAll<Card>(() => sb.rpc('my_cards')), // seules les cartes possédées, même pour un administrateur
         fetchAll<Profile>(() => sb.from('profiles').select(PROFILE_COLS).order('username')),
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
-        fetchAll<Trade>(() => sb.from('trades').select('*, trade_items(side, card_id, quantity)').order('created_at', { ascending: false }).order('id')),
+        fetchAll<Trade>(() => sb.from('trades').select('*, trade_items(side, card_id, quantity)').or(`proposer_id.eq.${uid},recipient_id.eq.${uid}`).order('created_at', { ascending: false }).order('id')),
       ]);
       return { settings, rarities, sets, cards: mergeCatalog(catalog, known), profiles, userCards, trades };
     },

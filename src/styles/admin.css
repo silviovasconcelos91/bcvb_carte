@@ -37,6 +37,11 @@
 /* Tableaux */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 14px 0 16px; }
 .toolbar .search { width: min(320px, 100%); }
+/* Échanges : cartes données par chaque côté */
+.given { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.given li { display: flex; align-items: center; gap: 7px; }
+.given .dot { flex: none; width: 8px; height: 8px; }
+.date-cell { white-space: nowrap; }
 .grow-input { flex: 1 1 260px; width: auto; }
 .table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .tbl { width: 100%; border-collapse: collapse; font-size: 15px; }

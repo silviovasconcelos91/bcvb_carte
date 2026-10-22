@@ -63,7 +63,7 @@ export default function GameApp() {
         return 'pending';
       }
       setPending(null);
-      const raw = await api.load();
+      const raw = await api.load(who);
       const paths = artPaths(raw.cards);
       const urls = paths.length ? await api.imageUrls(paths) : {};
       setD(indexGame(raw, who, urls));

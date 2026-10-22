@@ -12,9 +12,10 @@ import { CardsAdmin } from './Cards';
 import { RaritiesAdmin, SetsAdmin, SubtitlesAdmin } from './Catalog';
 import { CodesAdmin } from './Codes';
 import { MembersAdmin, SettingsAdmin } from './Members';
+import { TradesAdmin } from './TradesAdmin';
 import '../styles/admin.css';
 
-const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['sets', 'Séries'], ['subtitles', 'Sous-titres'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['members', 'Membres'], ['settings', 'Réglages']];
+const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['sets', 'Séries'], ['subtitles', 'Sous-titres'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['trades', 'Échanges'], ['members', 'Membres'], ['settings', 'Réglages']];
 
 let apiSingleton: AdminApi | null = null;
 const getApi = () => (apiSingleton ??= createAdminApi());
@@ -118,6 +119,7 @@ export default function AdminApp() {
           {tab === 'subtitles' && <SubtitlesAdmin />}
           {tab === 'rarities' && <RaritiesAdmin />}
           {tab === 'codes' && <CodesAdmin />}
+          {tab === 'trades' && <TradesAdmin />}
           {tab === 'members' && <MembersAdmin />}
           {tab === 'settings' && <SettingsAdmin />}
         </main>

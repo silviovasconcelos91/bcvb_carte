@@ -1,5 +1,5 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, Subtitle, UserCard } from '../lib/types';
+import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, Subtitle, Trade, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { PASSWORD_MIN, loginId, loginIdOf, signIn } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
@@ -16,6 +16,7 @@ export interface AdminData {
   codes: BoosterCode[];
   admins: string[];
   recent: Opening[];
+  trades: Trade[]; // tous les échanges du club, du plus récent au plus ancien
   signupCode: string | null; // code du club : un compte créé avec lui est actif tout de suite
   stats: { nOpen: number; nOpenWeek: number; nAccepted: number; nPending: number };
 }
@@ -103,8 +104,8 @@ function createSupabaseAdminApi(): AdminApi {
     async load() {
       const week = new Date(Date.now() - 7 * 864e5).toISOString();
       const openings = () => sb.from('booster_openings').select('id', { count: 'exact', head: true });
-      const trades = () => sb.from('trades').select('id', { count: 'exact', head: true });
-      const [settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins, recent, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
+      const tradeCount = () => sb.from('trades').select('id', { count: 'exact', head: true });
+      const [settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins, recent, trades, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => ok<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => ok<Rarity[]>(r)),
         sb.from('card_sets').select('*').order('id').then(r => ok<CardSet[]>(r)),
@@ -116,13 +117,14 @@ function createSupabaseAdminApi(): AdminApi {
         fetchAll<BoosterCode>(() => sb.from('booster_codes').select('*').order('created_at', { ascending: false })),
         sb.from('admins').select('user_id').then(r => ok<{ user_id: string }[]>(r)),
         sb.from('booster_openings').select('id, user_id, code_id, card_ids, opened_at').order('opened_at', { ascending: false }).limit(12).then(r => ok<Opening[]>(r)),
+        fetchAll<Trade>(() => sb.from('trades').select('*, trade_items(side, card_id, quantity)').order('created_at', { ascending: false }).order('id')),
         sb.from('signup_settings').select('code').single().then(r => ok<{ code: string | null }>(r)),
         openings().then(count),
         openings().gte('opened_at', week).then(count),
-        trades().eq('status', 'accepted').then(count),
-        trades().eq('status', 'pending').then(count),
+        tradeCount().eq('status', 'accepted').then(count),
+        tradeCount().eq('status', 'pending').then(count),
       ]);
-      return { settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
+      return { settings, rarities, sets, subtitles, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, trades, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
     },
     // La photo et sa vignette éventuelles sont envoyées d'abord, les anciennes supprimées une fois la carte enregistrée
     async saveCard(card, photo, old) {
@@ -189,6 +191,7 @@ interface DemoDb {
   profiles: Profile[];
   owned: Record<string, Record<number, number>>;
   openings: Opening[];
+  trades: Trade[];
   codes: BoosterCode[];
   images: Record<string, string>;
   admins: string[];
@@ -200,7 +203,7 @@ interface DemoDb {
 
 function createDemoAdminApi(): AdminApi {
   const KEY = 'cartes-club-admin-demo-react-v1';
-  const VERSION = 4; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise ; 4 : sous-titres
+  const VERSION = 5; // 2 : statut des membres et code d'inscription ; 3 : codes à cartes au hasard ou carte précise ; 4 : sous-titres ; 5 : échanges
   const fail = (msg: string): never => { throw new Error(msg); };
   let db: DemoDb;
   const save = () => writeStore(KEY, db);
@@ -224,7 +227,7 @@ function createDemoAdminApi(): AdminApi {
         { id: 'demo-pending-1', username: 'Jules', status: 'pending', last_free_booster_at: null, created_at: ago(0.1) },
         { id: 'demo-pending-2', username: 'Manon R.', status: 'pending', last_free_booster_at: null, created_at: ago(1.5) },
       ],
-      owned: {}, openings: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
+      owned: {}, openings: [], trades: [], images: {}, admins: ['demo-admin'], signupCode: 'BCVB-7K3Q-M2PX', nextId: 100, accepted: 7, pending: 3,
       codes: [
         { id: 1, code: 'MATCH-14NOV', label: 'Match à domicile du 14/11', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 18, expires_at: ago(-5), created_at: ago(2) },
         { id: 2, code: 'NOEL26', label: 'Tournoi de Noël', set_id: 2, card_count: null, card_id: null, max_uses: 60, uses_count: 41, expires_at: null, created_at: ago(1) },
@@ -245,6 +248,19 @@ function createDemoAdminApi(): AdminApi {
         db.openings.push({ id: id++, user_id: p.id, code_id: k === 0 ? 1 : null, card_ids: cards, opened_at: ago(Math.random() * 10) });
       }
     }
+    // Quelques échanges entre membres actifs (contenu fictif, collections inchangées)
+    const players = db.profiles.filter(x => x.status === 'active');
+    const anyCard = (uid: string) => +(Object.keys(db.owned[uid] ?? {})[0] ?? db.cards[0].id);
+    const statuses = ['accepted', 'accepted', 'declined', 'accepted', 'pending', 'cancelled'] as const;
+    statuses.forEach((status, i) => {
+      const a = players[i % players.length].id, b = players[(i + 1) % players.length].id;
+      const created = ago(i * 1.3 + 0.2);
+      db.trades.push({
+        id: i + 1, proposer_id: a, recipient_id: b, status, message: null, created_at: created,
+        resolved_at: status === 'pending' ? null : created,
+        trade_items: [{ side: 'offer', card_id: anyCard(a), quantity: 1 }, { side: 'request', card_id: anyCard(b), quantity: 1 }],
+      });
+    });
     save();
   }
   const stored = readStore<DemoDb>(KEY);
@@ -265,6 +281,7 @@ function createDemoAdminApi(): AdminApi {
         settings: db.settings, rarities: db.rarities, sets: db.sets, subtitles: db.subtitles, cards: db.cards, profiles: db.profiles, userCards, admins: db.admins,
         codes: [...db.codes].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         recent: [...db.openings].sort((a, b) => b.opened_at.localeCompare(a.opened_at)).slice(0, 12),
+        trades: [...db.trades].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         signupCode: db.signupCode,
         stats: { nOpen: db.openings.length, nOpenWeek: db.openings.filter(o => Date.parse(o.opened_at) > week).length, nAccepted: db.accepted, nPending: db.pending },
       });
