@@ -56,6 +56,21 @@ export interface LeaderRow {
   distinct_count: number;
 }
 
+// Carte proposée par un membre, en attente d'examen par un administrateur
+export interface Proposal {
+  id: number;
+  user_id: string;
+  created_at: string;
+  name: string;
+  subtitle: string | null;
+  description: string | null;
+  stats: Stats;
+  rarity_id: number;
+  image_path: string;
+  thumb_path: string;
+}
+export type ProposalInput = Pick<Proposal, 'name' | 'subtitle' | 'description' | 'stats' | 'rarity_id'>;
+
 export type MemberStatus = 'active' | 'pending';
 
 export interface Profile {
