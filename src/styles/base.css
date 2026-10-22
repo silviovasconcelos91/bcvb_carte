@@ -360,6 +360,11 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .fx17 .card-fx::before { background: radial-gradient(ellipse 34% 16% at 15% 100%, rgba(5, 2, 5, .85), transparent 70%), radial-gradient(ellipse 30% 14% at 85% 100%, color-mix(in srgb, var(--hc-d) 85%, transparent), transparent 70%), radial-gradient(ellipse 16% 30% at 0% 55%, rgba(5, 2, 5, .8), transparent 70%), radial-gradient(ellipse 16% 30% at 100% 35%, color-mix(in srgb, var(--hc-d) 80%, transparent), transparent 70%), radial-gradient(ellipse 30% 12% at 50% 0%, rgba(5, 2, 5, .7), transparent 70%); filter: blur(1.4cqw); -webkit-mask: radial-gradient(ellipse at center, transparent 50%, #000 78%); mask: radial-gradient(ellipse at center, transparent 50%, #000 78%); animation: smoke 6s ease-in-out infinite alternate; }
 .fx17 .card-fx::after { box-shadow: inset 0 0 3cqw .4cqw color-mix(in srgb, var(--hc) 55%, transparent); animation: ember-in 3.4s ease-in-out infinite; }
 .card.fx17 .card-body { box-shadow: 0 0 0 1px var(--hc-d), 0 10px 30px -4px rgba(0, 0, 0, .8), 0 0 26px -6px var(--hc); }
+/* Flammes noires tout autour de la carte : halo sombre derrière la carte, déchiré en langues de feu
+   par le filtre SVG #fx-dark-flame (bruit animé, voir RarityStyles). Bord teinté de la couleur de la rareté
+   pour rester visible sur fond sombre. */
+.card.fx17 { isolation: isolate; }
+.card.fx17::before { content: ""; position: absolute; inset: -2cqw; z-index: -1; pointer-events: none; border-radius: 7cqw; background: rgba(4, 2, 4, .95); box-shadow: 0 -13cqw 9cqw -3cqw rgba(4, 2, 4, .92), 0 -3cqw 6cqw 3cqw rgba(4, 2, 4, .88), 0 -6cqw 14cqw 6cqw color-mix(in srgb, var(--hc) 55%, transparent); filter: url(#fx-dark-flame); }
 
 @keyframes shard { from { opacity: .45; transform: none; } to { opacity: .75; transform: rotate(2deg) scale(1.04); } }
 @keyframes dark-side { 0%, 100% { filter: none; } 50% { filter: grayscale(.55) contrast(1.25) brightness(.72); } }

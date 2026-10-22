@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { Card, CardSet, Rarity } from './types';
-import { pad2 } from './format';
+import { pad2, reduceMotion } from './format';
 
 // Ce dont les visuels de cartes ont besoin, fourni par le jeu comme par la console
 export interface Lookup {
@@ -58,7 +58,7 @@ export const EFFECTS = [
   { id: 10, level: 5, label: 'Flamme', desc: 'Flammes qui dansent au pied de la carte, braises qui montent', color: '#FF5A1F' },
   { id: 13, level: 5, label: 'Aurore', desc: "Voiles d'aurore boréale qui ondulent sur un ciel de nuit", color: '#22D3A6' },
   { id: 15, level: 5, label: 'Obsidienne', desc: 'Pierre noire veinée de lumière, halo qui pulse', color: '#B026FF' },
-  { id: 17, level: 5, label: 'Côté obscur', desc: "Une ombre gagne la moitié du visage, l'illustration s'assombrit, fumée sur les bords", color: '#C1121F' },
+  { id: 17, level: 5, label: 'Côté obscur', desc: "Une ombre gagne la moitié du visage, l'illustration s'assombrit, flammes noires tout autour de la carte", color: '#C1121F' },
   { id: 6, level: 6, label: 'Prisme', desc: 'Cadre sombre, prisme arc-en-ciel animé, confettis', color: '#8660FF' },
 ] as const;
 const effectById = new Map<number, (typeof EFFECTS)[number]>(EFFECTS.map(e => [e.id, e]));
@@ -89,9 +89,27 @@ export const rClass = (L: Pick<Lookup, 'rarityById'>, c: Pick<Card, 'rarity_id'>
 // Couleur de chaque rareté pour le CSS (sélecteur doublé : passe devant la couleur par défaut de l'effet)
 const rarityCss = (rarities: Iterable<Pick<Rarity, 'id' | 'effect' | 'color'>>) =>
   [...rarities].map(r => `.rid${r.id}.rid${r.id}{--hc:${colorOf(r)}}`).join('');
+// Avec la liste globale (sans `rarities`), ajoute aussi les filtres SVG des effets, une seule fois par page
 export function RarityStyles({ rarities }: { rarities?: Iterable<Pick<Rarity, 'id' | 'effect' | 'color'>> }) {
   const L = useLookup();
-  return <style>{rarityCss(rarities ?? L.rarityById.values())}</style>;
+  return (
+    <>
+      <style>{rarityCss(rarities ?? L.rarityById.values())}</style>
+      {!rarities && <EffectFilters />}
+    </>
+  );
 }
+
+// Côté obscur : bruit animé (fixe si l'utilisateur réduit les animations) qui déchire le halo noir de la carte en langues de flammes (.card.fx17::before)
+const EffectFilters = () => (
+  <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+    <filter id="fx-dark-flame" x="-40%" y="-50%" width="180%" height="190%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.06 0.012" numOctaves={2} seed={7}>
+        {!reduceMotion() && <animate attributeName="baseFrequency" dur="3.2s" values="0.06 0.012;0.07 0.016;0.06 0.012" repeatCount="indefinite" />}
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" scale={34} xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </svg>
+);
 export const cardStats = (c: Pick<Card, 'stats'>) =>
   Object.entries(c.stats || {}).filter(([k, v]) => k !== 'numero' && typeof v === 'number').slice(0, 4);
