@@ -63,7 +63,7 @@ export interface AdminApi {
 export type RarityInput = Pick<Rarity, 'id' | 'code' | 'label' | 'weight' | 'is_secret' | 'effect' | 'color' | 'gems' | 'badge'>;
 
 // Messages d'erreur de la base traduits en français
-export function friendly(msg: string): string {
+function friendly(msg: string): string {
   if (/delete on table "rarities"/.test(msg)) return 'Des cartes utilisent encore cette rareté.';
   if (/'(gems|badge)' column of 'rarities'/.test(msg)) return 'Base pas à jour : exécute supabase/patches/2026-10-19-losanges-raretes.sql.';
   if (/cards_set_id_number_key/.test(msg)) return 'Ce numéro est déjà pris dans cette série.';

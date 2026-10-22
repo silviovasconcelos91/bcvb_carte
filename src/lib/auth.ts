@@ -1,22 +1,19 @@
 import { CONFIG } from '../config';
 import { getSupabase } from './supabase';
+import { stripAccents } from './format';
 
 // Comptes pseudo + mot de passe. Supabase identifie un compte par une adresse e-mail :
 // chaque pseudo devient une adresse interne, cartes-<identifiant>@<VITE_LOGIN_EMAIL_DOMAIN>,
 // à laquelle aucun e-mail n'est jamais envoyé (confirmation désactivée dans Supabase).
 const PREFIX = 'cartes-';
 
-export const PSEUDO_MIN = 3;
-export const PSEUDO_MAX = 30;
+const PSEUDO_MIN = 3;
+const PSEUDO_MAX = 30;
 export const PASSWORD_MIN = 8;
-
-// Diacritiques séparés des lettres par normalize('NFD') : U+0300 à U+036F
-const ACCENTS = new RegExp(`[${String.fromCharCode(0x300)}-${String.fromCharCode(0x36f)}]`, 'g');
 
 // « Léa Martin » -> « lea.martin »
 export function loginId(pseudo: string): string {
-  return pseudo
-    .normalize('NFD').replace(ACCENTS, '') // accents retirés
+  return stripAccents(pseudo)
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9._-]+/g, '.')
@@ -25,7 +22,7 @@ export function loginId(pseudo: string): string {
 }
 
 // Une saisie avec @ est une vraie adresse (comptes administrateurs) : utilisée telle quelle
-export function loginEmail(pseudo: string): string {
+function loginEmail(pseudo: string): string {
   const v = pseudo.trim();
   if (v.includes('@')) return v.toLowerCase();
   return `${PREFIX}${loginId(v)}@${CONFIG.loginDomain}`;
@@ -46,15 +43,18 @@ export function checkPseudo(pseudo: string): string | null {
   if (loginId(v).length < PSEUDO_MIN) return `Le pseudo doit contenir au moins ${PSEUDO_MIN} lettres ou chiffres.`;
   return null;
 }
+const checkPasswordLength = (password: string) =>
+  (password.length < PASSWORD_MIN ? `Le mot de passe doit faire au moins ${PASSWORD_MIN} caractères.` : null);
 export function checkPassword(password: string, confirm: string): string | null {
-  if (password.length < PASSWORD_MIN) return `Le mot de passe doit faire au moins ${PASSWORD_MIN} caractères.`;
+  const short = checkPasswordLength(password);
+  if (short) return short;
   if (password !== confirm) return 'Les deux mots de passe ne sont pas identiques.';
   return null;
 }
 
 // Erreurs d'authentification de Supabase traduites en français
 interface AuthErr { message: string; code?: string; status?: number }
-export function authMessage({ message, code, status }: AuthErr): string {
+function authMessage({ message, code, status }: AuthErr): string {
   if (code === 'user_already_exists' || /already registered/i.test(message)) return 'Ce pseudo est déjà pris.';
   if (code === 'invalid_credentials' || /invalid login credentials/i.test(message)) return 'Pseudo ou mot de passe incorrect.';
   if (code === 'weak_password' || /weak|at least \d+ characters/i.test(message)) return `Mot de passe trop faible (${PASSWORD_MIN} caractères minimum).`;
@@ -78,7 +78,7 @@ export async function signIn(identifiant: string, password: string): Promise<voi
 
 // La confirmation du mot de passe est vérifiée par le formulaire
 export async function signUp(pseudo: string, password: string, code: string): Promise<void> {
-  const invalid = checkPseudo(pseudo) ?? checkPassword(password, password);
+  const invalid = checkPseudo(pseudo) ?? checkPasswordLength(password);
   if (invalid) throw new Error(invalid);
   const { data, error } = await getSupabase().auth.signUp({
     email: loginEmail(pseudo),

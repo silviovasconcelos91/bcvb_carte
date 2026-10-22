@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import type { GameApi } from '../api/game';
 import { CONFIG, CONFIG_ERROR } from '../config';
 import { checkPassword, checkPseudo, loginId } from '../lib/auth';
-import { initial, plural } from '../lib/format';
+import { errMsg, initial, plural } from '../lib/format';
 import { LookupContext, RarityStyles, makeLookup } from '../lib/lookup';
 import { CardBack, CardView, Court, Logo } from '../components/visuals';
 import { ConfigError, SignInForm } from '../components/AuthForms';
@@ -85,7 +85,7 @@ function SignUpForm({ api }: { api: GameApi }) {
       await api.signUp(pseudo, password, String(f.get('code') || ''));
       // la session ouverte par l'inscription est prise en charge par le suivi de session
     } catch (err) {
-      toast(err instanceof Error ? err.message : String(err), true);
+      toast(errMsg(err), true);
     } finally {
       setBusy(false);
     }

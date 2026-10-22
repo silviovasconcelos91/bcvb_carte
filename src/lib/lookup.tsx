@@ -10,7 +10,7 @@ export interface Lookup {
   urls: Record<string, string>;
 }
 
-export const EMPTY_LOOKUP: Lookup = { rarityById: new Map(), setById: new Map(), setCount: new Map(), urls: {} };
+const EMPTY_LOOKUP: Lookup = { rarityById: new Map(), setById: new Map(), setCount: new Map(), urls: {} };
 export const LookupContext = createContext<Lookup>(EMPTY_LOOKUP);
 export const useLookup = () => useContext(LookupContext);
 
@@ -61,7 +61,6 @@ export const EFFECTS = [
   { id: 17, level: 5, label: 'Côté obscur', desc: "Une ombre gagne la moitié du visage, l'illustration s'assombrit, fumée sur les bords", color: '#C1121F' },
   { id: 6, level: 6, label: 'Prisme', desc: 'Cadre sombre, prisme arc-en-ciel animé, confettis', color: '#8660FF' },
 ] as const;
-export const MAX_EFFECT = 17;
 const effectById = new Map<number, (typeof EFFECTS)[number]>(EFFECTS.map(e => [e.id, e]));
 export const isHex = (v: unknown): v is string => typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 
@@ -88,7 +87,7 @@ export const rarClass = (L: Pick<Lookup, 'rarityById'>, id: number | null | unde
 export const rClass = (L: Pick<Lookup, 'rarityById'>, c: Pick<Card, 'rarity_id'>) => rarClass(L, c.rarity_id);
 
 // Couleur de chaque rareté pour le CSS (sélecteur doublé : passe devant la couleur par défaut de l'effet)
-export const rarityCss = (rarities: Iterable<Pick<Rarity, 'id' | 'effect' | 'color'>>) =>
+const rarityCss = (rarities: Iterable<Pick<Rarity, 'id' | 'effect' | 'color'>>) =>
   [...rarities].map(r => `.rid${r.id}.rid${r.id}{--hc:${colorOf(r)}}`).join('');
 export function RarityStyles({ rarities }: { rarities?: Iterable<Pick<Rarity, 'id' | 'effect' | 'color'>> }) {
   const L = useLookup();

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createAdminApi, type AdminApi } from '../api/admin';
 import { CONFIG, CONFIG_ERROR } from '../config';
-import { initial } from '../lib/format';
+import { errMsg } from '../lib/format';
 import { LookupContext, RarityStyles, artPaths } from '../lib/lookup';
-import { Logo } from '../components/visuals';
+import { Avatar, Logo } from '../components/visuals';
 import { useToast } from '../components/Toasts';
 import { ConfigError, SignInForm } from '../components/AuthForms';
 import { AdminContext, indexAdmin, type AdminCtx, type AdminIndex, type AdminTab } from './context';
@@ -40,7 +40,7 @@ export default function AdminApp() {
       setLoadError(null);
     } catch (e) {
       setD(null);
-      setLoadError(e instanceof Error ? e.message : String(e));
+      setLoadError(errMsg(e));
     }
   }, [api]);
 
@@ -56,7 +56,7 @@ export default function AdminApp() {
     let alive = true;
     api.init(next => { if (alive) void enter(next); })
       .then(async who => { if (alive) await enter(who); })
-      .catch(e => setLoadError(e instanceof Error ? e.message : String(e)))
+      .catch(e => setLoadError(errMsg(e)))
       .finally(() => { if (alive) setBooting(false); });
     return () => { alive = false; };
   }, [api, enter]);
@@ -93,7 +93,7 @@ export default function AdminApp() {
           <div className="who">
             {api.mode === 'demo' ? <span className="pill">Démo</span> : (
               <>
-                <span className="avatar sm" aria-hidden="true">{initial(ctx.d.me?.username)}</span>
+                <Avatar name={ctx.d.me?.username} small />
                 <span className="who-name">{ctx.d.me?.username}</span>
                 <button className="btn small ghost" onClick={() => void logout()}>Se déconnecter</button>
               </>

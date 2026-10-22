@@ -1,19 +1,19 @@
 import { CONFIG } from '../config';
-import { initial, plural } from '../lib/format';
-import { Logo } from '../components/visuals';
-import { useGame, type Tab } from './context';
+import { plural } from '../lib/format';
+import { Avatar, Logo } from '../components/visuals';
+import { pendingTrades, useGame, type Tab } from './context';
 
 const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collection'], ['trades', 'Échanges'], ['leaderboard', 'Classement']];
 
 export function Header({ onLogout, onSwitch, onAccount }: { onLogout: () => void; onSwitch: (uid: string) => void; onAccount: () => void }) {
   const { api, d, uid, tab, setTab } = useGame();
-  const received = d.trades.filter(t => t.status === 'pending' && t.recipient_id === uid).length;
+  const received = pendingTrades(d, uid, 'received').length;
   return (
     <header className="top">
       <div className="top-in">
         <div className="brand"><Logo /><h1 className="brand-name">Cartes du {CONFIG.clubName}</h1></div>
         <div className="who">
-          <span className="avatar sm" aria-hidden="true">{initial(d.me.username)}</span>
+          <Avatar name={d.me.username} small />
           {api.demo ? (
             <span className="select-wrap">
               <select className="select" value={uid} onChange={e => onSwitch(e.target.value)} aria-label="Changer de membre (démo)">

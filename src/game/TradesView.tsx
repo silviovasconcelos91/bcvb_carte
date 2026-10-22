@@ -1,23 +1,21 @@
 import { useState } from 'react';
+import { partialCard } from '../api/game';
 import type { Card, Trade, TradeItem } from '../lib/types';
-import { relTime } from '../lib/format';
+import { errMsg, relTime } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
 import { IconSwap, MiniArt } from '../components/visuals';
 import { useToast } from '../components/Toasts';
-import { nameOf, qtyOf, useGame } from './context';
+import { nameOf, pendingTrades, qtyOf, useGame } from './context';
 
 // Carte absente du catalogue (secrète, pas encore possédée) : affichée de dos, sans aucune information
-const mystery = (id: number): Card => ({
-  id, set_id: 0, number: null, name: 'Carte mystère', subtitle: null, description: null, image_path: null, thumb_path: null,
-  rarity_id: null, stats: {}, is_released: true, in_boosters: true, masked: true,
-});
+const mystery = (id: number): Card => partialCard({ id, name: 'Carte mystère', masked: true });
 
 const STATUS: Record<string, string> = { accepted: 'Accepté', declined: 'Refusé', cancelled: 'Annulé', failed: 'Échoué', countered: 'Contre-proposé' };
 
 export function TradesView() {
   const { d, uid, openComposer } = useGame();
-  const received = d.trades.filter(t => t.status === 'pending' && t.recipient_id === uid);
-  const sent = d.trades.filter(t => t.status === 'pending' && t.proposer_id === uid);
+  const received = pendingTrades(d, uid, 'received');
+  const sent = pendingTrades(d, uid, 'sent');
   const done = d.trades.filter(t => t.status !== 'pending').slice(0, 15);
   return (
     <section aria-labelledby="trades-title">
@@ -60,7 +58,7 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
         await api.cancelTrade(t.id); await refresh(); toast('Proposition annulée');
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), true);
+      toast(errMsg(e), true);
       await refresh();
     } finally {
       setBusy(false);

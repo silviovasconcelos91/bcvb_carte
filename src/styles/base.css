@@ -12,7 +12,6 @@
   --club: #1F5BD6;
   --club-hover: #2D69E4;
   --club-deep: #0E2A66;
-  --club-sky: #8DB8FF;
   --court: #1847A6;
   --accent: #1D5FD0;
   --danger: #B5352A;
@@ -21,11 +20,6 @@
   --overlay: rgba(9, 16, 31, .86);
   --font: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-c: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", system-ui, sans-serif;
-  --r1: #8C97A6;
-  --r2: #2E9E6B;
-  --r3: #2F6FE0;
-  --r4: #8B5CF6;
-  --r5: #E3A008;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -243,7 +237,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .r4 .card-foil::after { opacity: .6; }
 .r5 .card-foil { opacity: .85; mix-blend-mode: overlay; background-image: linear-gradient(115deg, transparent 15%, color-mix(in srgb, var(--hc-xl) 90%, transparent) 30%, color-mix(in srgb, var(--hc) 30%, transparent) 42%, color-mix(in srgb, var(--hc-xl) 95%, transparent) 52%, transparent 70%); animation-duration: 5s; }
 .r6 .card-foil { opacity: .8; background-image: var(--rainbow); background-size: 300% 300%; animation: foil 5s ease-in-out infinite alternate, prism 8s linear infinite; }
-.card.is-active .card-foil { opacity: 1; animation-play-state: paused; background-position: var(--px, 50%) var(--py, 50%); }
+.card.is-active .card-foil { opacity: 1; animation-play-state: paused; background-position: var(--mx, 50%) var(--my, 50%); }
 .card.r4.is-active .card-foil { opacity: .9; }
 .card.r6.is-active .card-foil { animation: prism 8s linear infinite; }
 
@@ -251,7 +245,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .card-holo { display: none; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: .3; background: linear-gradient(115deg, var(--hc-l), var(--hc-xl) 25%, var(--hc) 50%, var(--hc-xl) 75%, var(--hc-l)); -webkit-mask: linear-gradient(115deg, transparent 25%, #000 45%, #000 55%, transparent 75%) 0 0 / 300% 300%; mask: linear-gradient(115deg, transparent 25%, #000 45%, #000 55%, transparent 75%) 0 0 / 300% 300%; animation: band 6s ease-in-out infinite alternate; }
 .r5 .card-holo, .r6 .card-holo { display: block; }
 .r6 .card-holo { opacity: .38; background: var(--rainbow) 0 0 / 200% 200%; animation: band 5s ease-in-out infinite alternate, prism 8s linear infinite; }
-.card.is-active .card-holo { opacity: .5; animation-play-state: paused; -webkit-mask-position: var(--px, 50%) var(--py, 50%); mask-position: var(--px, 50%) var(--py, 50%); }
+.card.is-active .card-holo { opacity: .5; animation-play-state: paused; -webkit-mask-position: var(--mx, 50%) var(--my, 50%); mask-position: var(--mx, 50%) var(--my, 50%); }
 .card.r6.is-active .card-holo { animation: prism 8s linear infinite; }
 
 /* Paillettes sur l'illustration : deux trames décalées qui scintillent en alternance */
@@ -269,8 +263,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .r5, .r6 { --glare: 1; }
 .r6 .card-glare { mix-blend-mode: overlay; }
 
-.gems i.secret, .rchip.r6 i, .rlabel.r6 i { background: conic-gradient(#FF4DA6, #FFD600, #00E0FF, #8660FF, #FF4DA6); }
-.gems i.prism { background: conic-gradient(#FF4DA6, #FFD600, #00E0FF, #8660FF, #FF4DA6); }
+.gems i.secret, .gems i.prism, .rchip.r6 i, .rlabel.r6 i { background: conic-gradient(#FF4DA6, #FFD600, #00E0FF, #8660FF, #FF4DA6); }
 .gems i.secret { width: 4.2cqw; height: 4.2cqw; }
 /* Texte choisi à la place des losanges */
 .gems b { color: var(--rc); font: 800 6cqw/1 var(--font-c); white-space: nowrap; text-shadow: 0 0 .6cqw rgba(255, 255, 255, .9); }
@@ -283,15 +276,11 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .card.r5 .card-body { box-shadow: 0 0 0 1px color-mix(in srgb, var(--hc-l) 75%, transparent), 0 10px 28px -6px color-mix(in srgb, var(--hc) 70%, transparent); }
 .card.r6 .card-body { box-shadow: 0 0 0 1px rgba(255, 255, 255, .5), 0 10px 30px -6px rgba(134, 96, 255, .7); animation: aura 6s linear infinite; }
 
-.card.is-ghost .card-body { filter: grayscale(.9); opacity: .5; animation: none; }
-.card.is-ghost .card-body::before, .card.is-ghost .card-holo, .card.is-ghost .card-sparkle { display: none; }
-.card.is-ghost .card-foil { animation: none; }
 
 /* Effets 7 à 17 : habillage propre (classe .fxN) par-dessus leur niveau (.r3 à .r5).
    .card-fx est un calque libre au-dessus de la carte, avec ses deux pseudo-éléments. */
 .card-fx { display: none; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
 .card-fx::before, .card-fx::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
-.card.is-ghost .card-fx { display: none; }
 
 /* 7 Givré : cadre glacé, cristaux sur l'illustration, bords de la face pris par le givre */
 .fx7 { --frame: linear-gradient(155deg, #fff 0%, var(--hc-l) 28%, #fff 48%, var(--hc) 74%, var(--hc-xl) 100%); --face: linear-gradient(170deg, #F7FBFE 0%, var(--hc-xl) 100%); }
@@ -346,7 +335,6 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .fx15 { --frame: linear-gradient(155deg, #2A2A33 0%, #050507 40%, #15151C 70%, #3A3A46 100%); --face: linear-gradient(170deg, color-mix(in oklab, var(--hc) 10%, #F2F0F6) 0%, color-mix(in oklab, var(--hc) 26%, #D9D4E3) 100%); --a1: #050507; --a2: var(--hc-d); }
 .fx15 .card-body { background: linear-gradient(130deg, transparent 0 30%, var(--hc) 30.6%, transparent 31.4% 60%, var(--hc-l) 60.4%, transparent 61.2%), linear-gradient(40deg, transparent 0 46%, var(--hc) 46.4%, transparent 47.2%), var(--frame); }
 .card.fx15 .card-body { animation: ember 3s ease-in-out infinite; }
-.card.fx15.is-ghost .card-body, .card.fx14.is-ghost .card-art { animation: none; }
 
 /* 16 Verre brisé : vitre étoilée à partir d'un point d'impact, éclats qui accrochent la lumière,
    un reflet court le long des fissures */
@@ -372,7 +360,6 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .fx17 .card-fx::before { background: radial-gradient(ellipse 34% 16% at 15% 100%, rgba(5, 2, 5, .85), transparent 70%), radial-gradient(ellipse 30% 14% at 85% 100%, color-mix(in srgb, var(--hc-d) 85%, transparent), transparent 70%), radial-gradient(ellipse 16% 30% at 0% 55%, rgba(5, 2, 5, .8), transparent 70%), radial-gradient(ellipse 16% 30% at 100% 35%, color-mix(in srgb, var(--hc-d) 80%, transparent), transparent 70%), radial-gradient(ellipse 30% 12% at 50% 0%, rgba(5, 2, 5, .7), transparent 70%); filter: blur(1.4cqw); -webkit-mask: radial-gradient(ellipse at center, transparent 50%, #000 78%); mask: radial-gradient(ellipse at center, transparent 50%, #000 78%); animation: smoke 6s ease-in-out infinite alternate; }
 .fx17 .card-fx::after { box-shadow: inset 0 0 3cqw .4cqw color-mix(in srgb, var(--hc) 55%, transparent); animation: ember-in 3.4s ease-in-out infinite; }
 .card.fx17 .card-body { box-shadow: 0 0 0 1px var(--hc-d), 0 10px 30px -4px rgba(0, 0, 0, .8), 0 0 26px -6px var(--hc); }
-.card.fx17.is-ghost .card-art > img, .card.fx17.is-ghost .card-art > svg { animation: none; }
 
 @keyframes shard { from { opacity: .45; transform: none; } to { opacity: .75; transform: rotate(2deg) scale(1.04); } }
 @keyframes dark-side { 0%, 100% { filter: none; } 50% { filter: grayscale(.55) contrast(1.25) brightness(.72); } }
@@ -425,8 +412,6 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .lb-row[aria-current] { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); font-weight: 700; }
 .lb-rank { color: var(--muted); font: 700 18px/1 var(--font-c); text-align: right; font-variant-numeric: tabular-nums; }
 .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lb-bar { height: 8px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
-.lb-bar span { display: block; height: 100%; border-radius: inherit; background: var(--club); }
 .lb-count { color: var(--muted); font-variant-numeric: tabular-nums; }
 .lb-count b { color: var(--text); }
 .lb-gap { margin: 4px 0; color: var(--muted); text-align: center; }
@@ -439,8 +424,9 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .score-total { margin-left: 4px; color: var(--muted); font: 700 32px/1 var(--font-c); }
 .score-label { margin: 0 0 4px; font: 700 21px/1.15 var(--font-c); }
 .score-sub { grid-column: 1 / -1; margin: 10px 0 0; color: var(--muted); }
-.bar { grid-column: 1 / -1; height: 8px; margin-top: 12px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
-.bar span { display: block; height: 100%; border-radius: inherit; background: var(--club); }
+.bar, .lb-bar { height: 8px; overflow: hidden; border-radius: 4px; background: var(--surface-2); }
+.bar { grid-column: 1 / -1; margin-top: 12px; }
+.bar span, .lb-bar span { display: block; height: 100%; border-radius: inherit; background: var(--club); }
 .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 22px 0 16px; }
 .seg { display: inline-flex; max-width: 100%; overflow-x: auto; padding: 3px; border-radius: 999px; background: var(--surface-2); scrollbar-width: none; }
 .seg button { appearance: none; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-size: 15px; font-weight: 600; white-space: nowrap; cursor: pointer; }

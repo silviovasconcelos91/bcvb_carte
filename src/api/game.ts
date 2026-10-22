@@ -1,5 +1,5 @@
 import { DEMO } from '../config';
-import type { Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
+import type { BoosterCode, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
@@ -46,14 +46,17 @@ export interface GameApi {
   };
 }
 
+// Carte dont on ne connaît que quelques champs (catalogue masqué, tirage, carte mystère d'un échange)
+export const partialCard = (c: Pick<Card, 'id'> & Partial<Card>): Card => ({
+  set_id: 0, number: null, name: '', subtitle: null, description: null, image_path: null, thumb_path: null,
+  rarity_id: null, stats: {}, is_released: true, in_boosters: true, ...c,
+});
+
 // Catalogue : les cartes possédées (renvoyées par my_cards()) en entier, les autres réduites
 // à leur série, leur numéro et leur rareté. Les cartes secrètes non possédées n'y sont pas.
 export function mergeCatalog(catalog: CatalogRow[], known: Card[]): Card[] {
   const full = new Map(known.map(c => [c.id, c]));
-  return catalog.map(r => full.get(r.id) ?? {
-    id: r.id, set_id: r.set_id, number: r.number, rarity_id: r.rarity_id, masked: true,
-    name: '', subtitle: null, description: null, stats: {}, image_path: null, thumb_path: null, is_released: true, in_boosters: true,
-  });
+  return catalog.map(r => full.get(r.id) ?? partialCard({ id: r.id, set_id: r.set_id, number: r.number, rarity_id: r.rarity_id, masked: true }));
 }
 
 const PROFILE_COLS = 'id, username, status, last_free_booster_at';
@@ -98,7 +101,7 @@ function createSupabaseGameApi(): GameApi {
 }
 
 /* -------------------------------- Démo -------------------------------- */
-interface DemoCode { id: number; code: string; set_id: number | null; card_count?: number | null; card_id?: number | null; max_uses: number | null; uses_count: number; expires_at: string | null }
+type DemoCode = Pick<BoosterCode, 'id' | 'code' | 'set_id' | 'card_count' | 'card_id' | 'max_uses' | 'uses_count' | 'expires_at'>;
 // Codes de la démo : booster complet, booster d'une série, une carte d'une série, une carte précise
 const DEMO_CODES: DemoCode[] = [
   { id: 1, code: 'MATCH-14NOV', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
@@ -178,7 +181,7 @@ function createDemoGameApi(): GameApi {
     for (const c of DEMO_CODES) if (!db.codes.some(x => x.code === c.code)) db.codes.push(clone(c)); // codes ajoutés depuis
   } else seed();
 
-  return {
+  const api: GameApi = {
     mode: 'demo',
     async init() { return db.current; },
     async signIn() { fail('Mode démo : choisis un membre fictif.'); },
@@ -210,7 +213,7 @@ function createDemoGameApi(): GameApi {
     async openBooster(code) {
       const me = db.current ?? fail('Connexion requise');
       const p = profile(me) ?? fail('Profil introuvable');
-      let row: DemoDb['codes'][number] | undefined;
+      let row: DemoCode | undefined;
       if (code && code.trim()) {
         row = db.codes.find(c => c.code.toUpperCase() === code.trim().toUpperCase()) ?? fail('Code inconnu');
         if (row.expires_at && Date.parse(row.expires_at) < Date.now()) fail('Code expiré');
@@ -226,7 +229,7 @@ function createDemoGameApi(): GameApi {
         const card = db.cards.find(c => c.id === row!.card_id);
         if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
         drawn = [card];
-      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row ? row.set_id : null));
+      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? null));
       if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else {
         // Avance l'horloge de recharge d'un délai (voir open_booster)
         const cd = intervalMs(db.settings.free_booster_cooldown);
@@ -276,7 +279,7 @@ function createDemoGameApi(): GameApi {
     },
     async counterTrade(id, offer, request, message) {
       const t = db.trades.find(x => x.id === id && x.recipient_id === db.current && x.status === 'pending') ?? fail('Échange introuvable ou déjà traité');
-      const newId = await this.createTrade(t.proposer_id, offer, request, message);
+      const newId = await api.createTrade(t.proposer_id, offer, request, message);
       db.trades.find(x => x.id === newId)!.counter_of = id;
       Object.assign(t, { status: 'countered', resolved_at: nowIso() });
       save();
@@ -306,6 +309,7 @@ function createDemoGameApi(): GameApi {
       async reset() { try { localStorage.removeItem(KEY); } catch { /* rien à effacer */ } seed(); },
     },
   };
+  return api;
 }
 
 export const createGameApi = (): GameApi => (DEMO ? createDemoGameApi() : createSupabaseGameApi());

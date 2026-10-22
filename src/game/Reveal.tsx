@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from 'react';
 import { createPortal } from 'react-dom';
+import { partialCard } from '../api/game';
 import type { Card, DrawnCard } from '../lib/types';
 import { plural, reduceMotion, sleep } from '../lib/format';
 import { cardName, colorOf, effectOf, rarClass, rarityLabel, rClass, useLookup } from '../lib/lookup';
@@ -76,10 +77,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
 
   const items = drawn.map(it => {
     const known = d.cardById.get(it.card_id);
-    const card: Card = known && !known.masked ? known : {
-      id: it.card_id, set_id: known?.set_id ?? 0, number: known?.number ?? null, name: it.name, rarity_id: it.rarity_id,
-      image_path: it.image_path, thumb_path: null, subtitle: null, description: null, stats: {}, is_released: true, in_boosters: true,
-    };
+    const card = known && !known.masked ? known : partialCard({
+      id: it.card_id, set_id: known?.set_id ?? 0, number: known?.number ?? null, name: it.name, rarity_id: it.rarity_id, image_path: it.image_path,
+    });
     return { it, card };
   });
   const n = items.length;

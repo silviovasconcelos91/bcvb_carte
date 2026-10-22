@@ -2,18 +2,18 @@ import { useState, type FormEvent } from 'react';
 import qrcode from 'qrcode-generator';
 import type { BoosterCode, Card } from '../lib/types';
 import { CONFIG } from '../config';
-import { fmtDateLong, pad2 } from '../lib/format';
+import { fmtDateLong, pad2, stripAccents } from '../lib/format';
 import { rarityLabel, rClass } from '../lib/lookup';
 import { CardView, Logo, MiniArt } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { useConfirm } from '../components/Confirm';
 import { useRunner } from '../components/Toasts';
-import { CODE_STATUS, codeCard, codeCardUnreleased, codeReward, codeStatus, posterTitle, useAdmin } from './context';
+import { CODE_STATUS, codeCard, codeCardUnreleased, codeReward, codeStatus, posterTitle, useAdmin, useRunRefresh } from './context';
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const newCode = () => `${CONFIG.clubShort}-` + Array.from({ length: 4 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
 const appUrl = () => CONFIG.appUrl || `${window.location.origin}/`;
-const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const fold = (s: string) => stripAccents(s).toLowerCase();
 const UNRELEASED_WARN = "Publie-la avant l'événement, sinon le code ne fonctionnera pas.";
 
 type Kind = 'booster' | 'random' | 'card';
@@ -22,6 +22,7 @@ const KINDS: [Kind, string][] = [['booster', 'Un booster'], ['random', 'Des cart
 export function CodesAdmin() {
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
+  const runRefresh = useRunRefresh();
   const confirm = useConfirm();
   const empty = { kind: 'booster' as Kind, code: newCode(), label: '', set_id: '', card_count: '1', card_id: '', max_uses: '', expires_at: '' };
   const [form, setForm] = useState(empty);
@@ -54,11 +55,11 @@ export function CodesAdmin() {
     setBusy(false);
   }
   async function stop(c: BoosterCode) {
-    if (await run(() => api.saveCode({ id: c.id, expires_at: new Date().toISOString() }), 'Code désactivé')) await refresh();
+    await runRefresh(() => api.saveCode({ id: c.id, expires_at: new Date().toISOString() }), 'Code désactivé');
   }
   async function remove(c: BoosterCode) {
     if (!(await confirm.ask('Supprimer le code', `Le code ${c.code} ne fonctionnera plus et son historique d'utilisation sera effacé.`, 'Supprimer'))) return;
-    if (await run(() => api.deleteCode(c.id), 'Code supprimé')) await refresh();
+    await runRefresh(() => api.deleteCode(c.id), 'Code supprimé');
   }
 
   const setOptions = d.sets.map(s => <option key={s.id} value={s.id}>Série {s.name}</option>);

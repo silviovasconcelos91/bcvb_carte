@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createGameApi, type GameApi } from '../api/game';
 import { CONFIG } from '../config';
 import { LookupContext, RarityStyles, artPaths } from '../lib/lookup';
+import { errMsg } from '../lib/format';
 import type { DrawnCard, Profile } from '../lib/types';
 import { Logo } from '../components/visuals';
 import { useToast } from '../components/Toasts';
@@ -70,7 +71,7 @@ export default function GameApp() {
       return true;
     } catch (e) {
       setD(null);
-      setLoadError(e instanceof Error ? e.message : String(e));
+      setLoadError(errMsg(e));
       return false;
     }
   }, [api]);
@@ -87,7 +88,7 @@ export default function GameApp() {
       if (who) await load(who);
       setBooting(false);
     }).catch(e => {
-      setLoadError(e instanceof Error ? e.message : String(e));
+      setLoadError(errMsg(e));
       setBooting(false);
     });
     return () => { alive = false; };

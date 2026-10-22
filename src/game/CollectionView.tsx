@@ -1,6 +1,6 @@
 import { Fragment, useState, type KeyboardEvent } from 'react';
 import type { Card } from '../lib/types';
-import { pad2, plural, sumValues } from '../lib/format';
+import { pad2, percent, plural, sumValues } from '../lib/format';
 import { cardName, isSecret, rarClass, rarText, rClass, rarityLabel, useLookup } from '../lib/lookup';
 import { CardView, RarityGems } from '../components/visuals';
 import { useGame } from './context';
@@ -26,7 +26,7 @@ export function CollectionView() {
   const goal = cards.filter(c => !isSecret(L, c)).length;
   const total = sumValues(mine);
   const dups = [...mine.values()].reduce((a, q) => a + q - 1, 0);
-  const pct = goal ? Math.min(100, Math.round((distinct / goal) * 100)) : 0;
+  const pct = percent(distinct, goal);
 
   let list = cards.filter(c => set === 'all' || String(c.set_id) === set);
   if (rar.size) list = list.filter(c => c.rarity_id != null && rar.has(c.rarity_id));
@@ -38,9 +38,8 @@ export function CollectionView() {
   if (sort !== 'number') {
     const rank = (c: Card) => (c.rarity_id != null ? L.rarityById.get(c.rarity_id)?.weight ?? Infinity : Infinity);
     const dir = sort === 'rare' ? 1 : -1;
-    list = [...list].sort((a, b) => a.set_id - b.set_id
-      || (rank(a) === rank(b) ? 0 : !isFinite(rank(a)) ? 1 : !isFinite(rank(b)) ? -1 : (rank(a) - rank(b)) * dir)
-      || (a.number ?? 0) - (b.number ?? 0));
+    const byRarity = (ra: number, rb: number) => (ra === rb ? 0 : !isFinite(ra) ? 1 : !isFinite(rb) ? -1 : (ra - rb) * dir);
+    list = [...list].sort((a, b) => a.set_id - b.set_id || byRarity(rank(a), rank(b)) || (a.number ?? 0) - (b.number ?? 0));
   }
   const multi = new Set(list.map(c => c.set_id)).size > 1;
 

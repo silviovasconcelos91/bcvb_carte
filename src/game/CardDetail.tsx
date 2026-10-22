@@ -1,6 +1,6 @@
-import { pad2, plural, initial } from '../lib/format';
+import { pad2, plural } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
-import { CardBack, CardView } from '../components/visuals';
+import { Avatar, CardBack, CardView } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { qtyOf, useGame } from './context';
 
@@ -31,7 +31,7 @@ export function CardDetail({ id, onClose }: { id: number; onClose: () => void })
             <ul className="owners">
               {owners.map(([p, n]) => (
                 <li key={p.id}>
-                  <span className="avatar sm" aria-hidden="true">{initial(p.username)}</span>
+                  <Avatar name={p.username} small />
                   <span className="owner-name">{p.username}</span>
                   <span className="owner-q">{plural(n, 'exemplaire', 'exemplaires')}</span>
                   <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, want: [[c.id, 1]] }); }}>Lui demander</button>

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import type { Card, CardSet, Rarity, Subtitle } from '../lib/types';
 import { plural } from '../lib/format';
 import { CardView, Gems } from '../components/visuals';
@@ -6,12 +6,13 @@ import { EFFECTS, LookupContext, RarityStyles, colorOf, fxClass, fxInfo, fxOf, i
 import { Modal } from '../components/Modal';
 import { useConfirm } from '../components/Confirm';
 import { useRunner } from '../components/Toasts';
-import { boosterPool, useAdmin, type AdminIndex } from './context';
+import { boosterPool, useAdmin, useRunRefresh, type AdminIndex } from './context';
 
 /* ------------------------------- Séries ------------------------------- */
 export function SetsAdmin() {
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
+  const runRefresh = useRunRefresh();
   const confirm = useConfirm();
   const [name, setName] = useState('');
   const [renaming, setRenaming] = useState<CardSet | null>(null);
@@ -22,11 +23,11 @@ export function SetsAdmin() {
     if (n && await run(() => api.saveSet({ name: n, in_boosters: true }), `Série « ${n} » créée`)) { setName(''); await refresh(); }
   }
   async function toggle(s: CardSet, on: boolean) {
-    if (await run(() => api.saveSet({ ...s, in_boosters: on }), on ? 'Série active dans les boosters' : 'Série retirée des boosters standards')) await refresh();
+    await runRefresh(() => api.saveSet({ ...s, in_boosters: on }), on ? 'Série active dans les boosters' : 'Série retirée des boosters standards');
   }
   async function remove(s: CardSet) {
     if (!(await confirm.ask('Supprimer la série', `La série « ${s.name} » sera supprimée.`, 'Supprimer'))) return;
-    if (await run(() => api.deleteSet(s.id), 'Série supprimée')) await refresh();
+    await runRefresh(() => api.deleteSet(s.id), 'Série supprimée');
   }
 
   return (
@@ -56,28 +57,36 @@ export function SetsAdmin() {
           })}
         </tbody>
       </table></div>
-      {renaming && <RenameSet set={renaming} onClose={() => setRenaming(null)} />}
+      {renaming && (
+        <RenameModal title="Renommer la série" inputId="set-name" initial={renaming.name} maxLength={60} okMsg="Série renommée"
+          save={name => api.saveSet({ ...renaming, name })} onClose={() => setRenaming(null)} />
+      )}
       {confirm.element}
     </>
   );
 }
 
-function RenameSet({ set, onClose }: { set: CardSet; onClose: () => void }) {
-  const { api, refresh } = useAdmin();
+// Renommage d'une série ou d'un sous-titre : nom inchangé = simple fermeture
+function RenameModal({ title, inputId, initial, maxLength, okMsg, save, hint, onClose }: {
+  title: string; inputId: string; initial: string; maxLength: number; okMsg: string;
+  save: (name: string) => Promise<unknown>; hint?: ReactNode; onClose: () => void;
+}) {
+  const { refresh } = useAdmin();
   const run = useRunner();
-  const [name, setName] = useState(set.name);
-  async function save() {
+  const [name, setName] = useState(initial);
+  async function submit() {
     const n = name.trim();
     if (!n) return;
-    if (n === set.name) { onClose(); return; }
-    if (await run(() => api.saveSet({ ...set, name: n }), 'Série renommée')) { onClose(); await refresh(); }
+    if (n === initial) { onClose(); return; }
+    if (await run(() => save(n), okMsg)) { onClose(); await refresh(); }
   }
   return (
-    <Modal title="Renommer la série" onClose={onClose}
-      footer={<span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" onClick={() => void save()}>Enregistrer</button></span>}>
-      <form className="field" onSubmit={e => { e.preventDefault(); void save(); }}>
-        <label htmlFor="set-name">Nouveau nom</label>
-        <input id="set-name" className="input" value={name} onChange={e => setName(e.target.value)} required maxLength={60} />
+    <Modal title={title} onClose={onClose}
+      footer={<span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" onClick={() => void submit()}>Enregistrer</button></span>}>
+      <form className="field" onSubmit={e => { e.preventDefault(); void submit(); }}>
+        <label htmlFor={inputId}>Nouveau nom</label>
+        <input id={inputId} className="input" value={name} onChange={e => setName(e.target.value)} required maxLength={maxLength} />
+        {hint}
       </form>
     </Modal>
   );
@@ -87,6 +96,7 @@ function RenameSet({ set, onClose }: { set: CardSet; onClose: () => void }) {
 export function SubtitlesAdmin() {
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
+  const runRefresh = useRunRefresh();
   const confirm = useConfirm();
   const [label, setLabel] = useState('');
   const [renaming, setRenaming] = useState<Subtitle | null>(null);
@@ -101,7 +111,7 @@ export function SubtitlesAdmin() {
     const n = uses(s);
     const msg = n ? `Le sous-titre « ${s.label} » sera supprimé et retiré de ${plural(n, 'carte', 'cartes')}.` : `Le sous-titre « ${s.label} » sera supprimé.`;
     if (!(await confirm.ask('Supprimer le sous-titre', msg, 'Supprimer'))) return;
-    if (await run(() => api.deleteSubtitle(s.id), 'Sous-titre supprimé')) await refresh();
+    await runRefresh(() => api.deleteSubtitle(s.id), 'Sous-titre supprimé');
   }
 
   return (
@@ -128,34 +138,16 @@ export function SubtitlesAdmin() {
           ))}
         </tbody>
       </table></div>
-      {renaming && <RenameSubtitle subtitle={renaming} onClose={() => setRenaming(null)} />}
+      {renaming && (
+        <RenameModal title="Renommer le sous-titre" inputId="subtitle-label" initial={renaming.label} maxLength={40} okMsg="Sous-titre renommé"
+          save={label => api.saveSubtitle({ id: renaming.id, label })} onClose={() => setRenaming(null)}
+          hint={uses(renaming) > 0 && <p className="hint">{plural(uses(renaming), 'carte sera mise', 'cartes seront mises')} à jour.</p>} />
+      )}
       {confirm.element}
     </>
   );
 }
 
-function RenameSubtitle({ subtitle, onClose }: { subtitle: Subtitle; onClose: () => void }) {
-  const { api, d, refresh } = useAdmin();
-  const run = useRunner();
-  const [label, setLabel] = useState(subtitle.label);
-  const n = d.cards.filter(c => c.subtitle === subtitle.label).length;
-  async function save() {
-    const l = label.trim();
-    if (!l) return;
-    if (l === subtitle.label) { onClose(); return; }
-    if (await run(() => api.saveSubtitle({ id: subtitle.id, label: l }), 'Sous-titre renommé')) { onClose(); await refresh(); }
-  }
-  return (
-    <Modal title="Renommer le sous-titre" onClose={onClose}
-      footer={<span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" onClick={() => void save()}>Enregistrer</button></span>}>
-      <form className="field" onSubmit={e => { e.preventDefault(); void save(); }}>
-        <label htmlFor="subtitle-label">Nouveau nom</label>
-        <input id="subtitle-label" className="input" value={label} onChange={e => setLabel(e.target.value)} required maxLength={40} />
-        {n > 0 && <p className="hint">{plural(n, 'carte sera mise', 'cartes seront mises')} à jour.</p>}
-      </form>
-    </Modal>
-  );
-}
 
 /* ------------------------------- Raretés ------------------------------ */
 const fmtPct = (x: number) => `${(x * 100).toLocaleString('fr-FR', { maximumFractionDigits: x < 0.1 ? 1 : 0 })} %`;
@@ -190,14 +182,13 @@ export function RaritiesAdmin() {
   const [rows, setRows] = useState<RarRow[]>(() => d.rarities.map(r => ({ id: r.id, code: r.code, label: r.label, weight: String(r.weight), is_secret: r.is_secret, effect: fxOf(r), color: colorOf(r), gems: r.gems == null ? '' : String(r.gems), badge: r.badge ?? '' })));
   const [sel, setSel] = useState(() => rows[0]?.id ?? 1);
   const [busy, setBusy] = useState(false);
-  const numeric = rows.map(r => ({ id: r.id, weight: Math.max(0, +r.weight || 0) }));
-  const o = odds(d, numeric);
   const update = (id: number, patch: Partial<RarRow>) => setRows(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)));
   const used = (id: number) => d.cards.some(c => c.rarity_id === id);
   const current = rows.find(r => r.id === sel) ?? rows[0];
 
   // Aperçu avec les réglages en cours, pas encore enregistrés
   const draft: Rarity[] = rows.map(r => ({ id: r.id, code: r.code, label: r.label, weight: +r.weight || 0, is_secret: r.is_secret, effect: r.effect, color: r.color, ...symbols(r) }));
+  const o = odds(d, draft);
   const previewLookup = { ...d.lookup, rarityById: new Map(draft.map(r => [r.id, r])) };
   const sample = d.cards.find(c => c.rarity_id === current?.id && c.is_released) ?? d.cards.find(c => c.is_released) ?? d.cards[0];
   const sampleFor = (rarity_id: number): Card => (sample
@@ -260,7 +251,7 @@ export function RaritiesAdmin() {
           </section>
         </LookupContext.Provider>
       )}
-      <form onSubmit={save} id="rar-form">
+      <form onSubmit={save}>
         <div className="table-wrap"><table className="tbl">
           <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th>Losanges</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>

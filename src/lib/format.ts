@@ -4,6 +4,11 @@ export const initial = (name: string | null | undefined) => (String(name || '?')
 export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 export const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const sumValues = (m: Map<unknown, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+// Avancement en pourcentage entier, plafonné à 100 (les cartes secrètes dépassent le total)
+export const percent = (n: number, total: number) => (total ? Math.min(100, Math.round((n / total) * 100)) : 0);
+export const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
+// « Éléa » -> « Elea » : diacritiques séparés des lettres par normalize('NFD') (U+0300 à U+036F), puis retirés
+export const stripAccents = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 // Intervalle Postgres ("1 day", "12:00:00", "1 day 02:00:00", "24 hours") en millisecondes
 export function intervalMs(v: string | number | null | undefined): number {
@@ -61,7 +66,7 @@ export function relTime(iso: string): string {
 }
 
 export const slug = (s: string) =>
-  String(s || 'carte').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  stripAccents(String(s || 'carte')).toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'carte';
 
 const STAT_LABELS: Record<string, string> = {

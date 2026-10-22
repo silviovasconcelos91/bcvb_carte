@@ -3,6 +3,7 @@ import type { AdminApi, AdminData } from '../api/admin';
 import type { BoosterCode, Card, Profile } from '../lib/types';
 import { makeLookup, type Lookup } from '../lib/lookup';
 import { plural } from '../lib/format';
+import { useRunner } from '../components/Toasts';
 
 export interface AdminIndex extends AdminData {
   cardById: Map<number, Card>;
@@ -15,7 +16,7 @@ export interface AdminIndex extends AdminData {
 }
 
 export function indexAdmin(d: AdminData, uid: string, urls: Record<string, string>): AdminIndex {
-  d.cards.sort((a, b) => a.set_id - b.set_id || (a.number ?? 0) - (b.number ?? 0));
+  const cards = [...d.cards].sort((a, b) => a.set_id - b.set_id || (a.number ?? 0) - (b.number ?? 0));
   const owned = new Map<string, Map<number, number>>();
   const owners = new Map<number, number>();
   for (const u of d.userCards) {
@@ -25,8 +26,8 @@ export function indexAdmin(d: AdminData, uid: string, urls: Record<string, strin
   }
   const profileById = new Map(d.profiles.map(p => [p.id, p]));
   return {
-    ...d, owned, owners, profileById, adminSet: new Set(d.admins), me: profileById.get(uid),
-    cardById: new Map(d.cards.map(c => [c.id, c])), lookup: makeLookup(d.rarities, d.sets, d.cards, urls),
+    ...d, cards, owned, owners, profileById, adminSet: new Set(d.admins), me: profileById.get(uid),
+    cardById: new Map(cards.map(c => [c.id, c])), lookup: makeLookup(d.rarities, d.sets, cards, urls),
   };
 }
 
@@ -45,6 +46,17 @@ export function useAdmin(): AdminCtx {
   return ctx;
 }
 
+// Lance une action (message de succès ou d'erreur), puis recharge les données si elle a réussi
+export function useRunRefresh() {
+  const { refresh } = useAdmin();
+  const run = useRunner();
+  return async (fn: () => Promise<unknown>, okMsg?: string) => {
+    const ok = await run(fn, okMsg);
+    if (ok) await refresh();
+    return ok;
+  };
+}
+
 export const nameOf = (d: AdminIndex, uid: string) => d.profileById.get(uid)?.username ?? 'Membre';
 
 export function codeStatus(c: BoosterCode): 'active' | 'expired' | 'used' {
@@ -58,7 +70,10 @@ const setName = (d: AdminIndex, id: number) => d.lookup.setById.get(id)?.name ??
 // Carte précise donnée par le code (undefined pour un booster ou des cartes au hasard)
 export const codeCard = (d: AdminIndex, c: BoosterCode) => (c.card_id != null ? d.cardById.get(c.card_id) : undefined);
 // Carte précise encore en préparation : l'utilisation du code échouera tant qu'elle n'est pas publiée
-export const codeCardUnreleased = (d: AdminIndex, c: BoosterCode) => !!codeCard(d, c) && !codeCard(d, c)!.is_released;
+export const codeCardUnreleased = (d: AdminIndex, c: BoosterCode) => {
+  const card = codeCard(d, c);
+  return !!card && !card.is_released;
+};
 
 // Ce que donne le code, pour le tableau des codes
 export function codeReward(d: AdminIndex, c: BoosterCode): string {

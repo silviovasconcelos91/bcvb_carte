@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { fmtDuration, freeBoosters, intervalMs, plural } from '../lib/format';
+import { errMsg, fmtDuration, freeBoosters, intervalMs, plural } from '../lib/format';
 import { Court, Pack } from '../components/visuals';
 import { useToast } from '../components/Toasts';
 import { useGame, type GameIndex } from './context';
@@ -36,7 +36,7 @@ export function BoosterView() {
       await refresh();
       showReveal(cards);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), true);
+      toast(errMsg(e), true);
     } finally {
       setBusy(null);
     }

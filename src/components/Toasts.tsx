@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import { errMsg } from '../lib/format';
 
 type Toast = { id: number; msg: string; error: boolean };
 type ToastFn = (msg: string, error?: boolean) => void;
@@ -32,7 +33,7 @@ export function useRunner() {
       if (okMsg) toast(okMsg);
       return true;
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), true);
+      toast(errMsg(e), true);
       return false;
     }
   }, [toast]);

@@ -6,9 +6,9 @@
 .hint.center { text-align: center; }
 .pill { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font: 600 13px/1 var(--font); white-space: nowrap; }
 .pill.ok { background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
-.pill.warn { background: color-mix(in srgb, #E3A008 22%, transparent); color: #8A5D00; }
-:root[data-theme="dark"] .pill.warn { color: #F2C14E; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pill.warn { color: #F2C14E; } }
+.pill.warn, .tag.warn { background: color-mix(in srgb, #E3A008 22%, transparent); color: #8A5D00; }
+:root[data-theme="dark"] .pill.warn, :root[data-theme="dark"] .tag.warn { color: #F2C14E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pill.warn, :root:not([data-theme="light"]) .tag.warn { color: #F2C14E; } }
 .pills { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .btn.danger { border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); background: transparent; }
 .btn.danger:hover:not(:disabled) { border-color: var(--danger); }
@@ -50,7 +50,7 @@
 .cell-card { display: flex; align-items: center; gap: 10px; }
 .cell-text { display: grid; min-width: 0; }
 .cell-text .muted { font-size: 13px; }
-.cell-card .chip-art { width: 30px; height: 40px; }
+.cell-card .chip-art, .card-pick .chip-art { width: 30px; height: 40px; }
 .rar-name { display: flex; align-items: center; gap: 10px; }
 .rar-name .gems, .slot .gems { padding: 0; gap: 5px; }
 .rar-name .gems i { width: 9px; height: 9px; border-radius: 2px; box-shadow: none; }
@@ -111,11 +111,7 @@
 .card-pick .pick-row { appearance: none; width: 100%; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .card-pick .pick-row:hover { background: color-mix(in srgb, var(--club) 7%, transparent); }
 .card-pick .pick-row.is-on { background: color-mix(in srgb, var(--club) 14%, transparent); box-shadow: inset 3px 0 0 var(--club); }
-.card-pick .chip-art { width: 30px; height: 40px; }
 .card-pick-empty { padding: 14px 12px; }
-.tag.warn { background: color-mix(in srgb, #E3A008 22%, transparent); color: #8A5D00; }
-:root[data-theme="dark"] .tag.warn { color: #F2C14E; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tag.warn { color: #F2C14E; } }
 .settings { display: grid; gap: 18px; max-width: 520px; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 
 /* Éditeur de carte */

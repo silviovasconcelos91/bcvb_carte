@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import type { Card, Rarity } from '../lib/types';
 import { CONFIG } from '../config';
 import { initial, pad2, statLabel } from '../lib/format';
@@ -6,7 +5,7 @@ import { artUrl, cardStats, effectOf, fxInfo, fxOf, rarClass, rarityLabel, useLo
 import { useTilt } from './useTilt';
 
 // Ballon aux couleurs du club : cercle blanc et trois bandes courbes
-export function Ball({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+function Ball({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   const k = r / 30;
   const p = (x: number, y: number) => `${(cx + (x - 50) * k).toFixed(1)} ${(cy + (y - 50) * k).toFixed(1)}`;
   const band = (a: [number, number], b: [number, number], c: [number, number], color: string) => (
@@ -24,11 +23,15 @@ export function Ball({ cx, cy, r }: { cx: number; cy: number; r: number }) {
 }
 
 // Blason du club (public/logo.png, fond détouré)
-export const LOGO_URL = '/logo.png';
-export const Logo = ({ className = 'logo' }: { className?: string }) => (
-  <img className={className} src={LOGO_URL} alt="" aria-hidden="true" />
+const LOGO_URL = '/logo.png';
+export const Logo = () => (
+  <img className="logo" src={LOGO_URL} alt="" aria-hidden="true" />
 );
 
+// Pastille avec l'initiale d'un membre, décorative : le nom est toujours écrit à côté
+export const Avatar = ({ name, small = false }: { name: string | null | undefined; small?: boolean }) => (
+  <span className={small ? 'avatar sm' : 'avatar'} aria-hidden="true">{initial(name)}</span>
+);
 export const IconX = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
 );
@@ -56,7 +59,7 @@ function artKind(card: Pick<Card, 'subtitle'>): ArtKind {
 }
 
 // Illustration de remplacement tant que la carte n'a pas de photo
-export function CardArtSvg({ card }: { card: Pick<Card, 'subtitle' | 'stats' | 'name'> }) {
+function CardArtSvg({ card }: { card: Pick<Card, 'subtitle' | 'stats' | 'name'> }) {
   const kind = artKind(card);
   return (
     <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -124,11 +127,10 @@ interface CardViewProps {
   qty?: number;
   isNew?: boolean;
   tilt?: boolean;
-  ghost?: boolean;
   size?: ArtSize; // 'full' pour les grands affichages : carte retournée, fiche, aperçu de l'éditeur
 }
 
-export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = false, size = 'thumb' }: CardViewProps) {
+export function CardView({ card, qty = 0, isNew = false, tilt = false, size = 'thumb' }: CardViewProps) {
   const L = useLookup();
   const tiltProps = useTilt(tilt);
   const set = L.setById.get(card.set_id);
@@ -136,7 +138,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, ghost = f
   const url = artUrl(L, card, size);
   const r = effectOf(L, card.rarity_id);
   return (
-    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}${ghost ? ' is-ghost' : ''}`} {...tiltProps}>
+    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}`} {...tiltProps}>
       <div className="card-body">
         <div className="card-face">
           <div className="card-top">
@@ -195,9 +197,9 @@ export function CardBack() {
   );
 }
 
-export function Pack({ setLabel, className = '', style }: { setLabel: string; className?: string; style?: CSSProperties }) {
+export function Pack({ setLabel }: { setLabel: string }) {
   return (
-    <div className={`pack ${className}`} style={style} aria-hidden="true">
+    <div className="pack" aria-hidden="true">
       <div className="pack-crimp" />
       <div className="pack-body">
         <div className="pack-bands" />

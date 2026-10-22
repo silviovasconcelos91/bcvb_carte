@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import type { Card, CardRef } from '../lib/types';
-import { initial, plural, sumValues } from '../lib/format';
+import { errMsg, plural, sumValues } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
-import { MiniArt } from '../components/visuals';
+import { Avatar, MiniArt } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toasts';
 import { nameOf, useGame } from './context';
@@ -48,7 +48,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
       await refresh();
       toast(opts.counter ? `Contre-proposition envoyée à ${toName}` : `Proposition envoyée à ${toName}`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : String(e), true);
+      toast(errMsg(e), true);
       setBusy(false);
     }
   }
@@ -110,7 +110,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
               return (
                 <li key={p.id}>
                   <button className="pick" onClick={() => { setTo(p.id); setGive(new Map()); setWant(new Map()); }}>
-                    <span className="avatar" aria-hidden="true">{initial(p.username)}</span>
+                    <Avatar name={p.username} />
                     <span className="pick-main"><span className="pick-name">{p.username}</span>
                       <span className="pick-meta">{plural(sumValues(theirs), 'carte', 'cartes')}{useful ? `, dont ${useful} qui te ${useful > 1 ? 'manquent' : 'manque'}` : ''}
                         {offer ? ` · tu en as ${offer} qui lui ${offer > 1 ? 'manquent' : 'manque'}` : ''}</span></span>
@@ -123,7 +123,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
       ) : (
         <>
           <div className="composer-to">
-            <span className="avatar sm" aria-hidden="true">{initial(toName)}</span>
+            <Avatar name={toName} small />
             <span>{opts.counter ? 'Contre-proposition à' : 'Échange avec'} <strong>{toName}</strong></span>
             {!opts.counter && <button className="btn small ghost" onClick={() => setTo(null)}>Changer de membre</button>}
           </div>

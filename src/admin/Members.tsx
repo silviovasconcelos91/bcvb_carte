@@ -1,22 +1,23 @@
 import { useState, type FormEvent } from 'react';
 import { CONFIG } from '../config';
 import type { MemberStatus, Profile } from '../lib/types';
-import { fmtDuration, freeBoosters, initial, intervalMs, sumValues } from '../lib/format';
+import { fmtDuration, freeBoosters, intervalMs, sumValues } from '../lib/format';
+import { Avatar } from '../components/visuals';
 import { useRunner, useToast } from '../components/Toasts';
 import { Modal } from '../components/Modal';
 import { PASSWORD_MIN } from '../lib/auth';
-import { nameOf, useAdmin } from './context';
+import { nameOf, useAdmin, useRunRefresh } from './context';
 
 export function MembersAdmin() {
-  const { api, d, refresh } = useAdmin();
-  const run = useRunner();
+  const { api, d } = useAdmin();
+  const runRefresh = useRunRefresh();
   const released = d.cards.filter(c => c.is_released).length;
   // Comptes en attente en premier, puis ordre alphabétique (celui du chargement)
   const list = [...d.profiles].sort((a, b) => +(b.status === 'pending') - +(a.status === 'pending'));
   const [pwFor, setPwFor] = useState<Profile | null>(null);
   const setStatus = async (p: Profile, status: MemberStatus) => {
     const msg = status === 'active' ? `Compte de ${p.username} validé` : `Compte de ${p.username} suspendu`;
-    if (await run(() => api.setMemberStatus(p.id, status), msg)) await refresh();
+    await runRefresh(() => api.setMemberStatus(p.id, status), msg);
   };
   return (
     <>
@@ -32,7 +33,7 @@ export function MembersAdmin() {
             const isPending = p.status === 'pending';
             return (
               <tr key={p.id}>
-                <td><span className="cell-card"><span className="avatar sm" aria-hidden="true">{initial(p.username)}</span><strong>{p.username}</strong>{d.adminSet.has(p.id) && <span className="pill">Admin</span>}</span></td>
+                <td><span className="cell-card"><Avatar name={p.username} small /><strong>{p.username}</strong>{d.adminSet.has(p.id) && <span className="pill">Admin</span>}</span></td>
                 <td><span className={`pill ${isPending ? 'warn' : 'ok'}`}>{isPending ? 'En attente' : 'Actif'}</span></td>
                 <td className="num">{sumValues(inv)}</td>
                 <td className="num">{distinct} / {released}</td>
@@ -40,7 +41,7 @@ export function MembersAdmin() {
                 <td className="actions">
                   {isPending && <button className="btn small primary" onClick={() => void setStatus(p, 'active')}>Valider</button>}
                   {!isPending && fb.available < fb.max && (
-                    <button className="btn small" onClick={async () => { if (await run(() => api.resetFreeBooster(p.id), `Boosters gratuits de ${nameOf(d, p.id)} rechargés`)) await refresh(); }}>Recharger</button>
+                    <button className="btn small" onClick={() => void runRefresh(() => api.resetFreeBooster(p.id), `Boosters gratuits de ${nameOf(d, p.id)} rechargés`)}>Recharger</button>
                   )}
                   {!d.adminSet.has(p.id) && <>{' '}<button className="btn small" onClick={() => setPwFor(p)}>Mot de passe</button></>}
                   {!isPending && p.id !== d.me?.id && <>{' '}<button className="btn small ghost" onClick={() => void setStatus(p, 'pending')}>Suspendre</button></>}
@@ -117,8 +118,8 @@ function PasswordReset({ member, onClose }: { member: Profile; onClose: () => vo
 }
 
 export function SettingsAdmin() {
-  const { api, d, refresh } = useAdmin();
-  const run = useRunner();
+  const { api, d } = useAdmin();
+  const runRefresh = useRunRefresh();
   const [size, setSize] = useState(String(d.settings.booster_size));
   const [hours, setHours] = useState(String(Math.round(intervalMs(d.settings.free_booster_cooldown) / 36e5)));
   const [stock, setStock] = useState(String(d.settings.free_booster_max ?? 1));
@@ -127,7 +128,7 @@ export function SettingsAdmin() {
     e.preventDefault();
     setBusy(true);
     const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: `${Math.max(1, +hours)} hours`, free_booster_max: Math.max(1, Math.min(10, +stock)) };
-    if (await run(() => api.saveSettings(st), 'Réglages enregistrés')) await refresh();
+    await runRefresh(() => api.saveSettings(st), 'Réglages enregistrés');
     setBusy(false);
   }
   return (
@@ -154,8 +155,8 @@ function randomCode(): string {
 }
 
 function SignupCode() {
-  const { api, d, refresh } = useAdmin();
-  const run = useRunner();
+  const { api, d } = useAdmin();
+  const runRefresh = useRunRefresh();
   const [code, setCode] = useState(d.signupCode ?? '');
   const [busy, setBusy] = useState(false);
   const value = code.trim();
@@ -164,7 +165,7 @@ function SignupCode() {
     e.preventDefault();
     if (invalid) return;
     setBusy(true);
-    if (await run(() => api.saveSignupCode(value || null), value ? "Code d'inscription enregistré" : "Code d'inscription retiré")) await refresh();
+    await runRefresh(() => api.saveSignupCode(value || null), value ? "Code d'inscription enregistré" : "Code d'inscription retiré");
     setBusy(false);
   }
   return (

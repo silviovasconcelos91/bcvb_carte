@@ -1,4 +1,5 @@
-import { initial, plural, relTime } from '../lib/format';
+import { plural, relTime } from '../lib/format';
+import { Avatar } from '../components/visuals';
 import { rClass, rarityLabel } from '../lib/lookup';
 import { boosterPool, codeCard, codeCardUnreleased, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
 
@@ -10,7 +11,8 @@ export function Dashboard() {
   const released = d.cards.filter(c => c.is_released);
   const drafts = d.cards.length - released.length;
   const waiting = d.profiles.filter(p => p.status === 'pending').length;
-  const active = d.codes.filter(c => codeStatus(c) === 'active').length;
+  const activeCodes = d.codes.filter(c => codeStatus(c) === 'active');
+  const active = activeCodes.length;
   const figures: [number, string, string][] = [
     [d.profiles.length, 'membres', waiting ? `dont ${waiting} en attente` : ''],
     [released.length, 'cartes publiées', drafts ? `${drafts} en préparation` : 'aucune en préparation'],
@@ -29,9 +31,9 @@ export function Dashboard() {
   const noPhoto = released.filter(c => !c.image_path && PLAYER.test(c.subtitle || '')).length;
   if (noPhoto) checks.push(['info', `${plural(noPhoto, 'carte de joueur publiée est', 'cartes de joueurs publiées sont')} encore sans photo.`, 'cards']);
   if (drafts) checks.push(['info', `${plural(drafts, 'carte est', 'cartes sont')} en préparation, ${drafts > 1 ? 'invisibles' : 'invisible'} pour les membres.`, 'cards']);
-  const unreleased = d.codes.filter(c => codeStatus(c) === 'active' && codeCardUnreleased(d, c));
+  const unreleased = activeCodes.filter(c => codeCardUnreleased(d, c));
   if (unreleased.length) checks.push(['err', `${plural(unreleased.length, 'code actif donne', 'codes actifs donnent')} une carte non publiée, ${unreleased.length > 1 ? 'ils ne fonctionneront' : 'il ne fonctionnera'} pas : ${unreleased.map(c => `${c.code} (${codeCard(d, c)!.name})`).join(', ')}.`, 'codes']);
-  const soon = d.codes.filter(c => codeStatus(c) === 'active' && c.expires_at && Date.parse(c.expires_at) - Date.now() < 864e5);
+  const soon = activeCodes.filter(c => c.expires_at && Date.parse(c.expires_at) - Date.now() < 864e5);
   if (soon.length) checks.push(['info', `${plural(soon.length, 'code expire', 'codes expirent')} dans moins de 24 h : ${soon.map(c => c.code).join(', ')}.`, 'codes']);
 
   return (
@@ -55,7 +57,7 @@ export function Dashboard() {
                 const code = o.code_id ? d.codes.find(c => c.id === o.code_id) : undefined;
                 return (
                   <li key={o.id}>
-                    <span className="avatar sm" aria-hidden="true">{initial(nameOf(d, o.user_id))}</span>
+                    <Avatar name={nameOf(d, o.user_id)} small />
                     <span className="act-main"><strong>{nameOf(d, o.user_id)}</strong><span className="muted">{relTime(o.opened_at)}{code ? `, code ${code.code}` : ''}</span></span>
                     <span className="act-cards">
                       {o.card_ids.map((id, i) => { const c = d.cardById.get(id); return c ? <i key={i} className={`dot ${rClass(d.lookup, c)}`} title={`${c.name}, ${rarityLabel(d.lookup, c.rarity_id)}`} /> : null; })}
