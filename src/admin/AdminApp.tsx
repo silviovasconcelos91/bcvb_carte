@@ -9,13 +9,14 @@ import { ConfigError, SignInForm } from '../components/AuthForms';
 import { AdminContext, indexAdmin, type AdminCtx, type AdminIndex, type AdminTab } from './context';
 import { Dashboard } from './Dashboard';
 import { CardsAdmin } from './Cards';
+import { ProposalsAdmin } from './ProposalsAdmin';
 import { RaritiesAdmin, SetsAdmin, SubtitlesAdmin } from './Catalog';
 import { CodesAdmin } from './Codes';
 import { MembersAdmin, SettingsAdmin } from './Members';
 import { TradesAdmin } from './TradesAdmin';
 import '../styles/admin.css';
 
-const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['sets', 'Séries'], ['subtitles', 'Sous-titres'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['trades', 'Échanges'], ['members', 'Membres'], ['settings', 'Réglages']];
+const TABS: [AdminTab, string][] = [['dashboard', 'Tableau de bord'], ['cards', 'Cartes'], ['proposals', 'Propositions'], ['sets', 'Séries'], ['subtitles', 'Sous-titres'], ['rarities', 'Raretés'], ['codes', 'Codes'], ['trades', 'Échanges'], ['members', 'Membres'], ['settings', 'Réglages']];
 
 let apiSingleton: AdminApi | null = null;
 const getApi = () => (apiSingleton ??= createAdminApi());
@@ -103,7 +104,9 @@ export default function AdminApp() {
             )}
           </div>
           <nav className="tabs" aria-label="Sections">
-            {TABS.map(([k, l]) => <button key={k} className="tab" aria-current={tab === k ? 'page' : undefined} onClick={() => ctx.setTab(k)}>{l}</button>)}
+            {TABS.map(([k, l]) => <button key={k} className="tab" aria-current={tab === k ? 'page' : undefined} onClick={() => ctx.setTab(k)}>
+              {l}{k === 'proposals' && ctx.d.proposals.length > 0 && <span className="badge">{ctx.d.proposals.length}</span>}
+            </button>)}
           </nav>
         </div></header>
         {api.mode === 'demo' && (
@@ -115,7 +118,8 @@ export default function AdminApp() {
         <main className="main admin" id="main">
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'cards' && <CardsAdmin />}
-          {tab === 'sets' && <SetsAdmin />}
+          {tab === 'proposals' && <ProposalsAdmin />}
+          {tab === 'sets' &&<SetsAdmin />}
           {tab === 'subtitles' && <SubtitlesAdmin />}
           {tab === 'rarities' && <RaritiesAdmin />}
           {tab === 'codes' && <CodesAdmin />}

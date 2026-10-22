@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Card } from '../lib/types';
+import type { Card, Proposal } from '../lib/types';
 import { pad2, plural } from '../lib/format';
 import { LookupContext, isSecret, rClass, rarityLabel } from '../lib/lookup';
 import { CardView, MiniArt } from '../components/visuals';
@@ -69,7 +69,8 @@ function toDraft(c: Card | null, setId: number, nextNumber: number, rarityId: nu
   };
 }
 
-function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet: number | null; onClose: () => void }) {
+// Avec `proposal`, la modale intègre la proposition d'un membre : carte créée en préparation, photo du membre conservée telle quelle
+export function CardEditor({ id, defaultSet, proposal, onClose }: { id: number | null; defaultSet: number | null; proposal?: Proposal; onClose: () => void }) {
   const { api, d, refresh } = useAdmin();
   const toast = useToast();
   const run = useRunner();
@@ -77,7 +78,9 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
   const base = id ? d.cardById.get(id) ?? null : null;
   const firstSet = defaultSet ?? d.sets[0]?.id ?? 0;
   const nextNumber = Math.max(0, ...d.cards.filter(c => c.set_id === firstSet).map(c => c.number ?? 0)) + 1;
-  const [draft, setDraft] = useState<Draft>(() => toDraft(base, firstSet, nextNumber, d.rarities[0]?.id ?? 1));
+  const [draft, setDraft] = useState<Draft>(() => (proposal
+    ? { ...draftFrom(proposal, d.rarities[0]?.id ?? 1), set_id: firstSet, number: String(nextNumber), is_released: false, in_boosters: true }
+    : toDraft(base, firstSet, nextNumber, d.rarities[0]?.id ?? 1)));
   const photo = useCardPhoto();
   const [removedFlag, setRemoved] = useState(false);
   const removed = removedFlag && !photo.img; // choisir une nouvelle photo annule le retrait
@@ -88,8 +91,9 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
   function toInput(): CardInput {
     return {
       ...(id ? { id } : {}), set_id: draft.set_id, number: draft.number === '' ? null : +draft.number, ...draftFields(draft),
-      is_released: draft.is_released, in_boosters: draft.in_boosters,
-      image_path: removed ? null : base?.image_path ?? null, thumb_path: removed ? null : base?.thumb_path ?? null,
+      is_released: proposal ? false : draft.is_released, in_boosters: draft.in_boosters,
+      image_path: proposal ? proposal.image_path : removed ? null : base?.image_path ?? null,
+      thumb_path: proposal ? proposal.thumb_path : removed ? null : base?.thumb_path ?? null,
     };
   }
 
@@ -110,6 +114,11 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
     if (!input.name) { toast('Donne un nom à la carte.', true); return; }
     if (!input.number) { toast('Indique le numéro de la carte dans sa série.', true); return; }
     setBusy(true);
+    if (proposal) {
+      if (await run(() => api.integrateProposal(proposal, input), 'Carte créée en préparation')) { onClose(); await refresh(); }
+      else setBusy(false);
+      return;
+    }
     const upload = await photo.exportPhoto();
     if (photo.img && !upload) { setBusy(false); return; } // message déjà affiché
     const old = base && (upload || removed) ? { image_path: base.image_path, thumb_path: base.thumb_path } : null;
@@ -124,7 +133,7 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
 
   const footer = (
     <>
-      {id ? (owners
+      {proposal ? <span /> : id ? (owners
         ? <p className="hint">Déjà obtenue par {plural(owners, 'membre', 'membres')} : pour la retirer, décoche « Peut tomber dans les boosters ».</p>
         : <button className="btn danger" onClick={() => void remove()}>Supprimer la carte</button>) : <span />}
       <span className="foot-btns"><button className="btn" onClick={onClose}>Annuler</button><button className="btn primary" disabled={busy} onClick={() => void save()}>Enregistrer</button></span>
@@ -133,7 +142,7 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
 
   return (
     <>
-      <Modal title={base ? `Modifier « ${base.name} »` : 'Nouvelle carte'} onClose={onClose} wide footer={footer}>
+      <Modal title={proposal ? `Intégrer « ${proposal.name} »` : base ? `Modifier « ${base.name} »` : 'Nouvelle carte'} onClose={onClose} wide footer={footer}>
         <div className="editor">
           <form className="editor-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void save(); }}>
             <div className="row2">
@@ -143,8 +152,10 @@ function CardEditor({ id, defaultSet, onClose }: { id: number | null; defaultSet
               <label className="field"><span>Numéro</span><input className="input" type="number" min={1} value={draft.number} onChange={e => set('number', e.target.value)} required /></label>
             </div>
             <CardFields draft={draft} onChange={x => setDraft(prev => ({ ...prev, ...x }))} rarities={d.rarities} subtitles={d.subtitles} />
-            <PhotoField photo={photo} canRemove={!!(photo.img || (base?.image_path && !removed))} onRemove={() => setRemoved(true)} />
-            <label className="check"><input type="checkbox" checked={draft.is_released} onChange={e => set('is_released', e.target.checked)} /> Publiée : visible par les membres</label>
+            {proposal
+              ? <p className="hint">Photo du membre, conservée telle quelle.</p>
+              : <PhotoField photo={photo} canRemove={!!(photo.img || (base?.image_path && !removed))} onRemove={() => setRemoved(true)} />}
+            {!proposal && <label className="check"><input type="checkbox" checked={draft.is_released} onChange={e => set('is_released', e.target.checked)} /> Publiée : visible par les membres</label>}
             <label className="check"><input type="checkbox" checked={draft.in_boosters} onChange={e => set('in_boosters', e.target.checked)} /> Peut tomber dans les boosters</label>
           </form>
           <div className="editor-side">

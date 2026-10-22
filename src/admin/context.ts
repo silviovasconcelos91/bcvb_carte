@@ -31,7 +31,7 @@ export function indexAdmin(d: AdminData, uid: string, urls: Record<string, strin
   };
 }
 
-export type AdminTab = 'dashboard' | 'cards' | 'sets' | 'subtitles' | 'rarities' | 'codes' | 'trades' | 'members' | 'settings';
+export type AdminTab = 'dashboard' | 'cards' | 'proposals' | 'sets' | 'subtitles' | 'rarities' | 'codes' | 'trades' | 'members' | 'settings';
 
 export interface AdminCtx {
   api: AdminApi;

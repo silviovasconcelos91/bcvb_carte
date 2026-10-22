@@ -154,3 +154,9 @@
   .poster-card { width: 6.5cm; }
   .poster-card, .poster-card * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Propositions de cartes */
+.prop-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 22px; }
+.prop-item { display: flex; flex-direction: column; gap: 8px; }
+.prop-meta { display: flex; flex-direction: column; }
+.prop-actions { display: flex; gap: 8px; }
