@@ -132,3 +132,6 @@ export interface CardRef {
   card_id: number;
   quantity: number;
 }
+
+// Photo recadrée prête à l'envoi : 720 px pour les grands affichages, vignette 240 px pour les petits
+export interface Photo { full: Blob; thumb: Blob }

@@ -1,5 +1,5 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Profile, Rarity, Settings, Subtitle, Trade, UserCard } from '../lib/types';
+import type { BoosterCode, Card, CardSet, MemberStatus, Opening, Photo, Profile, Rarity, Settings, Subtitle, Trade, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { PASSWORD_MIN, loginId, loginIdOf, signIn } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
@@ -22,8 +22,6 @@ export interface AdminData {
 }
 
 export type CardInput = Omit<Card, 'id' | 'masked'> & { id?: number };
-// Photo recadrée prête à l'envoi : 720 px pour les grands affichages, vignette 240 px pour les petits
-export interface Photo { full: Blob; thumb: Blob }
 export type CardPaths = Pick<Card, 'image_path' | 'thumb_path'>;
 
 // Même suffixe pour la photo et sa vignette
