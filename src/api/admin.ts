@@ -158,8 +158,15 @@ function createSupabaseAdminApi(): AdminApi {
       await removeFiles(files);
     },
     async refuseProposal(p) {
+      // Photos utilisées par une carte (proposition déjà intégrée) : jamais effacées
+      const files = [p.image_path, p.thumb_path];
+      const used = new Set<string>();
+      for (const col of ['image_path', 'thumb_path'] as const) {
+        const rows = ok(await sb.from('cards').select('image_path, thumb_path').in(col, files)) as CardPaths[];
+        for (const r of rows) filesOf(r).forEach(f => used.add(f));
+      }
       ok(await sb.from('card_proposals').delete().eq('id', p.id));
-      await removeFiles([p.image_path, p.thumb_path]);
+      await removeFiles(files.filter(f => !used.has(f)));
     },
     // Carte créée en premier : si la suppression échoue ensuite, la proposition reste visible plutôt que perdue
     async integrateProposal(p, card) {
@@ -332,6 +339,9 @@ function createDemoAdminApi(): AdminApi {
     },
     async refuseProposal(p) {
       db.proposals = db.proposals.filter(x => x.id !== p.id);
+      // Photos utilisées par une carte (proposition déjà intégrée) : jamais effacées
+      const used = new Set(db.cards.flatMap(filesOf));
+      for (const f of [p.image_path, p.thumb_path]) if (!used.has(f)) delete db.images[f];
       save();
     },
     async integrateProposal(p, card) {

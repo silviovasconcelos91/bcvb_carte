@@ -80,12 +80,15 @@ export function ProposeView() {
       <p className="lb-lead">Une idée de carte ? Envoie-la, elle sera examinée avant d'entrer dans le jeu.</p>
       <div className="editor propose-form">
         <form className="editor-form" onSubmit={e => { e.preventDefault(); void submit(); }}>
-          <CardFields draft={draft} onChange={setDraft} rarities={rarities} subtitles={subtitles} />
-          <PhotoField photo={photo} canRemove={!!photo.img} onRemove={() => {}} />
-          <div>
-            <button type="submit" className="btn" disabled={busy || full}>{busy ? 'Envoi…' : 'Proposer'}</button>
-            {full && <p className="hint" role="status">{PROPOSAL_LIMIT_MSG}</p>}
-          </div>
+          {full && <p className="hint" role="status">{PROPOSAL_LIMIT_MSG}</p>}
+          {/* Limite atteinte : tout le formulaire est désactivé, pas seulement le bouton */}
+          <fieldset className="pr-fields" disabled={full}>
+            <CardFields draft={draft} onChange={setDraft} rarities={rarities} subtitles={subtitles} />
+            <PhotoField photo={photo} canRemove={!!photo.img} onRemove={() => {}} />
+            <div>
+              <button type="submit" className="btn" disabled={busy || full}>{busy ? 'Envoi…' : 'Proposer'}</button>
+            </div>
+          </fieldset>
         </form>
         <div className="editor-side">
           <div className="editor-preview">

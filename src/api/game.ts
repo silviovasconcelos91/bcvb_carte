@@ -120,7 +120,13 @@ function createSupabaseGameApi(): GameApi {
       const image_path = `${base}.jpg`, thumb_path = `${base}.thumb.jpg`;
       const opts = { contentType: 'image/jpeg', upsert: false, cacheControl: '604800' };
       for (const [path, blob] of [[image_path, photo.full], [thumb_path, photo.thumb]] as const) {
-        must(await sb.storage.from(CONFIG.bucket).upload(path, blob, opts));
+        const { error: upErr } = await sb.storage.from(CONFIG.bucket).upload(path, blob, opts);
+        if (upErr) {
+          // Dépôt refusé par les règles du stockage : souvent la limite de 10 fichiers atteinte
+          const { status, statusCode } = upErr as { status?: number; statusCode?: string };
+          const denied = status === 403 || statusCode === '403' || /row-level security|violates/i.test(upErr.message);
+          throw new Error(denied ? 'Envoi de la photo refusé. Tu as peut-être atteint la limite de propositions.' : upErr.message);
+        }
       }
       // Si l'insertion échoue, l'erreur remonte telle quelle : les fichiers restent orphelins (le membre ne peut pas les supprimer)
       must(await sb.from('card_proposals').insert({ ...input, user_id: uid, image_path, thumb_path }));

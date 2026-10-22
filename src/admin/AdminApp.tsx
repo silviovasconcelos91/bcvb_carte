@@ -119,7 +119,7 @@ export default function AdminApp() {
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'cards' && <CardsAdmin />}
           {tab === 'proposals' && <ProposalsAdmin />}
-          {tab === 'sets' &&<SetsAdmin />}
+          {tab === 'sets' && <SetsAdmin />}
           {tab === 'subtitles' && <SubtitlesAdmin />}
           {tab === 'rarities' && <RaritiesAdmin />}
           {tab === 'codes' && <CodesAdmin />}

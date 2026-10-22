@@ -38,7 +38,8 @@ create policy "Admin : supprimer les propositions" on public.card_proposals
   for delete to authenticated using ((select public.is_admin()));
 
 -- Règles d'une proposition : compte actif, rareté non secrète, 5 en attente
--- au plus, photos rangées dans le dossier du membre. La date est imposée.
+-- au plus, statistiques bien formées, photos rangées dans le dossier du
+-- membre. La date est imposée.
 create or replace function private.check_card_proposal()
 returns trigger
 language plpgsql set search_path = ''
@@ -46,6 +47,9 @@ as $$
 declare
   v_prefix text := 'proposals/' || new.user_id || '/';
 begin
+  -- Un envoi à la fois par membre : deux insertions simultanées ne peuvent
+  -- pas dépasser la limite de 5 (verrou levé à la fin de la transaction)
+  perform pg_advisory_xact_lock(hashtext(new.user_id::text));
   if not exists (select 1 from public.profiles where id = new.user_id and status = 'active') then
     raise exception 'Compte en attente de validation';
   end if;
@@ -54,6 +58,20 @@ begin
   end if;
   if (select count(*) from public.card_proposals where user_id = new.user_id) >= 5 then
     raise exception 'Tu as déjà 5 propositions en cours d''examen. Tu pourras en proposer d''autres quand l''une d''elles aura été examinée.';
+  end if;
+  -- Statistiques : un objet de 5 nombres au plus, clés de 20 caractères au
+  -- plus ; n° de maillot (numero) de 0 à 99, autres statistiques de 0 à 10
+  if jsonb_typeof(new.stats) is distinct from 'object' then
+    raise exception 'Statistiques invalides';
+  end if;
+  if (select count(*) from jsonb_object_keys(new.stats)) > 5 or exists (
+    select 1 from jsonb_each(new.stats) as s (k, v)
+    where char_length(s.k) > 20
+       or case when jsonb_typeof(s.v) = 'number'
+               then s.v::numeric not between 0 and (case when s.k = 'numero' then 99 else 10 end)
+               else true end
+  ) then
+    raise exception 'Statistiques invalides';
   end if;
   if (starts_with(new.image_path, v_prefix) and starts_with(new.thumb_path, v_prefix)) is not true then
     raise exception 'Photo invalide';
@@ -67,15 +85,21 @@ create trigger check_card_proposal
   before insert on public.card_proposals
   for each row execute function private.check_card_proposal();
 
--- Nombre de fichiers dans le dossier de propositions du membre connecté.
+-- Nombre de fichiers dans le dossier de propositions du membre connecté,
+-- hors photos des cartes intégrées (elles restent dans ce dossier mais ne
+-- doivent pas empêcher de proposer à nouveau).
 -- En security definer pour compter aussi les fichiers orphelins (photos d'un
 -- envoi refusé), que la RLS lui cache.
 create or replace function rls.proposal_file_count()
 returns bigint
 language sql stable security definer set search_path = ''
 as $$
-  select count(*) from storage.objects
-  where bucket_id = 'card-images' and starts_with(name, 'proposals/' || auth.uid() || '/');
+  select count(*) from storage.objects o
+  where o.bucket_id = 'card-images'
+    and starts_with(o.name, 'proposals/' || auth.uid() || '/')
+    and not exists (
+      select 1 from public.cards c where o.name in (c.image_path, c.thumb_path)
+    );
 $$;
 revoke execute on function rls.proposal_file_count() from public, anon;
 grant execute on function rls.proposal_file_count() to authenticated;
@@ -159,5 +183,64 @@ create policy "Membres : lire les sous-titres" on public.card_subtitles
    set local request.jwt.claims = '{"sub":"<uid M>"}';
    select distinct user_id from public.card_proposals;
    delete from public.card_proposals;
+   rollback;
+
+   Photos (bucket "card-images") : les insertions dans storage.objects
+   ci-dessous passent par les mêmes règles qu'un envoi depuis l'appli.
+   Remplacer <uid P> par l'id d'un compte en attente. On suppose que M n'a
+   encore aucun fichier dans proposals/<uid M>/ (sinon en déposer d'autant
+   moins) et que <autre uid> a une proposition en attente.
+
+   5. Dépôt simple (comme l'appli, upsert:false) avant que la proposition
+      existe : passe. Dans le dossier d'un autre membre : échoue (RLS).
+
+   begin;
+   set local role authenticated;
+   set local request.jwt.claims = '{"sub":"<uid M>","role":"authenticated"}';
+   insert into storage.objects (bucket_id, name) values ('card-images', 'proposals/<uid M>/a.jpg');
+   insert into storage.objects (bucket_id, name) values ('card-images', 'proposals/<autre uid>/a.jpg');
+   rollback;
+
+   6. Compte en attente : le dépôt dans son propre dossier échoue (RLS).
+
+   begin;
+   set local role authenticated;
+   set local request.jwt.claims = '{"sub":"<uid P>","role":"authenticated"}';
+   insert into storage.objects (bucket_id, name) values ('card-images', 'proposals/<uid P>/a.jpg');
+   rollback;
+
+   7. Limite de fichiers : 10 dépôts passent, le 11ᵉ échoue (RLS).
+
+   begin;
+   set local role authenticated;
+   set local request.jwt.claims = '{"sub":"<uid M>","role":"authenticated"}';
+   insert into storage.objects (bucket_id, name)
+   select 'card-images', 'proposals/<uid M>/f' || i || '.jpg' from generate_series(1, 10) as i;
+   insert into storage.objects (bucket_id, name) values ('card-images', 'proposals/<uid M>/f11.jpg');
+   rollback;
+
+   8. Les photos d'une carte intégrée ne comptent pas : même chose, mais
+      une carte pointe vers l'un des 10 fichiers ; le 11ᵉ dépôt passe.
+
+   begin;
+   insert into storage.objects (bucket_id, name)
+   select 'card-images', 'proposals/<uid M>/f' || i || '.jpg' from generate_series(1, 10) as i;
+   update public.cards set image_path = 'proposals/<uid M>/f1.jpg'
+   where id = (select min(id) from public.cards);
+   set local role authenticated;
+   set local request.jwt.claims = '{"sub":"<uid M>","role":"authenticated"}';
+   insert into storage.objects (bucket_id, name) values ('card-images', 'proposals/<uid M>/f11.jpg');
+   rollback;
+
+   9. Photo d'une proposition d'un autre membre : invisible pour M (0 ligne),
+      donc aucune URL signée possible. Dans l'appli, connecté en M :
+      sb.storage.from('card-images').createSignedUrl('<image_path de la
+      proposition de l'autre membre>', 60) renvoie une erreur.
+
+   begin;
+   set local role authenticated;
+   set local request.jwt.claims = '{"sub":"<uid M>","role":"authenticated"}';
+   select name from storage.objects
+   where bucket_id = 'card-images' and starts_with(name, 'proposals/<autre uid>/');
    rollback;
    ===================================================================== */
