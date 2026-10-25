@@ -440,6 +440,16 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
   50% { box-shadow: 0 0 0 1px var(--hc-l), 0 10px 36px -2px color-mix(in srgb, var(--hc) 85%, transparent); }
 }
 .qty { position: absolute; bottom: -7px; left: -7px; z-index: 2; min-width: 32px; height: 26px; padding: 0 7px; border-radius: 13px; background: #13213C; color: #fff; font: 700 16px/26px var(--font-c); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
+/* Médaille cachée (10, 25, 50, 100 exemplaires) : pastille métallique en coin, mesurée sur la carte */
+.medal { --m1: #E8B07A; --m2: #9C5A2B; --m3: #5E3417; --mt: #3B1E0B; position: absolute; right: -6%; bottom: -4%; z-index: 2; display: grid; place-items: center; width: clamp(26px, 19cqw, 54px); aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 210deg, var(--m1), var(--m2), var(--m1), var(--m3), var(--m1)); box-shadow: 0 0 0 2px var(--bg), 0 3px 8px rgba(0, 0, 0, .4); pointer-events: auto; }
+.medal::before { content: ""; position: absolute; inset: 14%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .55); background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .55), transparent 55%), linear-gradient(150deg, var(--m1), var(--m2)); }
+.medal span { position: relative; color: var(--mt); font: 800 clamp(10px, 7.5cqw, 21px)/1 var(--font-c); letter-spacing: -.02em; text-shadow: 0 1px 0 rgba(255, 255, 255, .45); }
+.medal.silver { --m1: #F4F6F9; --m2: #A7B0BD; --m3: #6C7684; --mt: #2E3540; }
+.medal.gold { --m1: #FFE28A; --m2: #D69E1E; --m3: #8A5A06; --mt: #4A2E00; }
+.medal.platinum { --m1: #FFFFFF; --m2: #BFD9F2; --m3: #7F9DBF; --mt: #23324A; animation: medal-shine 3s ease-in-out infinite; }
+.medal.platinum::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .9) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: medal-glint 3s ease-in-out infinite; }
+@keyframes medal-shine { 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 14px rgba(191, 217, 242, .9); } }
+@keyframes medal-glint { 60%, 100% { background-position: 150% 0; } }
 .new-badge { position: absolute; top: -10px; left: 50%; z-index: 2; padding: 5px 10px; border-radius: 999px; background: #fff; color: var(--club-deep); font: 700 15px/1 var(--font-c); white-space: nowrap; transform: translateX(-50%); box-shadow: 0 0 0 2px var(--club), 0 2px 8px rgba(0, 0, 0, .35); }
 
 .card.back .card-body { padding: 0; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), var(--club-deep); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .24), 0 10px 22px -8px rgba(0, 0, 0, .7); }

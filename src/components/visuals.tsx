@@ -122,21 +122,32 @@ export function MiniArt({ card }: { card: Card }) {
   return url ? <img src={url} alt="" /> : <CardArtSvg card={card} />;
 }
 
+// Médaille cachée : récompense discrète des membres qui accumulent une même carte (jamais annoncée dans le jeu)
+const MEDALS = [
+  { min: 100, tier: 'platinum', label: 'Médaille de platine' },
+  { min: 50, tier: 'gold', label: "Médaille d'or" },
+  { min: 25, tier: 'silver', label: "Médaille d'argent" },
+  { min: 10, tier: 'bronze', label: 'Médaille de bronze' },
+] as const;
+export const medalOf = (copies: number) => MEDALS.find(m => copies >= m.min) ?? null;
+
 interface CardViewProps {
   card: Card;
   qty?: number;
+  copies?: number; // exemplaires possédés, pour la médaille (par défaut qty)
   isNew?: boolean;
   tilt?: boolean;
   size?: ArtSize; // 'full' pour les grands affichages : carte retournée, fiche, aperçu de l'éditeur
 }
 
-export function CardView({ card, qty = 0, isNew = false, tilt = false, size = 'thumb' }: CardViewProps) {
+export function CardView({ card, qty = 0, copies = qty, isNew = false, tilt = false, size = 'thumb' }: CardViewProps) {
   const L = useLookup();
   const tiltProps = useTilt(tilt);
   const set = L.setById.get(card.set_id);
   const stats = cardStats(card);
   const url = artUrl(L, card, size);
   const r = effectOf(L, card.rarity_id);
+  const medal = medalOf(copies);
   return (
     <div className={`card ${rarClass(L, card.rarity_id ?? 1)}`} {...tiltProps}>
       <div className="card-body">
@@ -173,6 +184,7 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, size = 't
       </div>
       {qty > 1 && <span className="qty">×{qty}</span>}
       {isNew && <span className="new-badge">Nouvelle</span>}
+      {medal && <span className={`medal ${medal.tier}`} title={`${medal.label} : ${medal.min} exemplaires`}><span>{medal.min}</span></span>}
     </div>
   );
 }

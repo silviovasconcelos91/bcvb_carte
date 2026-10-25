@@ -201,7 +201,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
                     } : { 'aria-hidden': true })}>
                     <span className="flip-inner">
                       <span className="flip-face"><CardBack /></span>
-                      <span className="flip-face flip-front"><CardView card={card} isNew={it.is_new} tilt={top} size="full" /></span>
+                      <span className="flip-face flip-front"><CardView card={card} copies={d.mine.get(card.id) ?? 0} isNew={it.is_new} tilt={top} size="full" /></span>
                     </span>
                   </div>
                 );
