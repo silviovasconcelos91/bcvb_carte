@@ -23,9 +23,21 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
   const [want, setWant] = useState<Map<number, number>>(new Map(opts.want ?? []));
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // Onglet de série : au départ, celle de la première carte proposée ou demandée
+  const [setTabId, setSetTabId] = useState<number | null>(() => {
+    const first = [...(opts.want ?? []), ...(opts.give ?? [])][0];
+    return first ? d.cardById.get(first[0])?.set_id ?? null : null;
+  });
 
   const g = sumValues(give), w = sumValues(want);
   const toName = to ? nameOf(d, to) : '';
+
+  // Un onglet par série présente chez l'un ou l'autre ; les cartes choisies restent retenues d'un onglet à l'autre
+  const held = new Set([...(d.mine.keys()), ...((to && d.owned.get(to)?.keys()) || [])].map(cid => d.cardById.get(cid)?.set_id));
+  const tabSets = d.sets.filter(s => held.has(s.id));
+  const activeSet = tabSets.find(s => s.id === setTabId) ?? tabSets[0];
+  const bySets = tabSets.length > 1;
+  const chosenIn = (setId: number) => [...give, ...want].reduce((a, [cid, n]) => a + (d.cardById.get(cid)?.set_id === setId ? n : 0), 0);
 
   function step(kind: 'give' | 'want', id: number, delta: number) {
     const setter = kind === 'give' ? setGive : setWant;
@@ -65,10 +77,13 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
     const rank = (c: Card) => (c.rarity_id != null ? L.rarityById.get(c.rarity_id)?.weight ?? 0 : 0);
     const theirs = to ? d.owned.get(to) : undefined;
     const theyMiss = (id: number) => !theirs?.get(id);
-    const rows = [...inv.entries()].map(([cid, q]) => ({ c: d.cardById.get(cid)!, q })).filter(x => x.c);
+    const rows = [...inv.entries()].map(([cid, q]) => ({ c: d.cardById.get(cid)!, q })).filter(x => x.c && (!bySets || x.c.set_id === activeSet.id));
     rows.sort(kind === 'give'
       ? (a, b) => Number(theyMiss(b.c.id)) - Number(theyMiss(a.c.id)) || Number(b.q > 1) - Number(a.q > 1) || rank(b.c) - rank(a.c) || cardName(a.c).localeCompare(cardName(b.c), 'fr')
       : (a, b) => Number(missing(b.c.id)) - Number(missing(a.c.id)) || rank(a.c) - rank(b.c) || cardName(a.c).localeCompare(cardName(b.c), 'fr'));
+    if (!rows.length && bySets) {
+      return <p className="pick-empty muted">{kind === 'give' ? "Tu n'as pas de carte de cette série." : `${nameOf(d, owner)} n'a pas de carte de cette série.`}</p>;
+    }
     if (!rows.length) {
       return <p className="pick-empty muted">{kind === 'give' ? "Tu n'as pas encore de carte à donner. Tu peux quand même en demander une." : "Ce membre n'a pas encore de carte."}</p>;
     }
@@ -127,6 +142,18 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
             <span>{opts.counter ? 'Contre-proposition à' : 'Échange avec'} <strong>{toName}</strong></span>
             {!opts.counter && <button className="btn small ghost" onClick={() => setTo(null)}>Changer de membre</button>}
           </div>
+          {bySets && (
+            <div className="seg composer-sets" role="group" aria-label="Série">
+              {tabSets.map(s => {
+                const n = chosenIn(s.id);
+                return (
+                  <button key={s.id} aria-pressed={s.id === activeSet.id} onClick={() => setSetTabId(s.id)}>
+                    {s.name}{n > 0 && <span className="seg-n">{n}<span className="sr-only"> {n > 1 ? 'cartes choisies' : 'carte choisie'}</span></span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="composer-cols">
             <section><h3 className="h3">Je donne</h3>{pickList(uid, give, 'give')}</section>
             <section><h3 className="h3">Je demande à {toName}</h3>{pickList(to, want, 'want')}</section>

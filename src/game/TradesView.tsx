@@ -71,10 +71,12 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
         const known = d.cardById.get(i.card_id);
         const c = known ?? mystery(i.card_id);
         const warn = check && qtyOf(d, uid, i.card_id) < i.quantity;
+        // Série de la carte, utile dès qu'il en existe plusieurs (inconnue pour une carte mystère)
+        const set = d.sets.length > 1 ? L.setById.get(c.set_id)?.name : undefined;
         const inner = (
           <>
             <span className="chip-art"><MiniArt card={c} /></span>
-            <span className="chip-text"><span className="chip-name">{known ? cardName(c) : c.name}{i.quantity > 1 ? ` ×${i.quantity}` : ''}</span><span className="chip-meta">{warn ? "Tu ne l'as plus" : rarText(L, c)}</span></span>
+            <span className="chip-text"><span className="chip-name">{known ? cardName(c) : c.name}{i.quantity > 1 ? ` ×${i.quantity}` : ''}</span><span className="chip-meta">{warn ? "Tu ne l'as plus" : set ? `${set} · ${rarText(L, c)}` : rarText(L, c)}</span></span>
           </>
         );
         const cls = `chip ${rClass(L, c)}${warn ? ' warn' : ''}`;

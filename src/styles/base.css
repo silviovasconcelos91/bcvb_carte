@@ -588,6 +588,8 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .pick-name { font-weight: 600; }
 .pick-meta { color: var(--muted); font-size: 14px; }
 .composer-to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 16px; }
+.composer-sets { margin-bottom: 14px; }
+.seg-n { display: inline-block; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px; border-radius: 10px; background: var(--club); color: #fff; font: 700 12px/20px var(--font); text-align: center; vertical-align: 1px; }
 .composer-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
 .composer-cols .h3 { margin: 0 0 8px; }
 .pick-cards { max-height: 46vh; margin: 0; padding: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; list-style: none; }
