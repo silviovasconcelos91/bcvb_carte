@@ -397,8 +397,11 @@ as $$
 $$;
 
 -- Ouvre un booster gratuit (selon le délai des réglages) ou via un code.
+-- p_set_id : série choisie par le membre (une série in_boosters), null = toutes les séries in_boosters.
+-- Un code lié à une série ou à une carte précise l'emporte sur ce choix.
 -- Renvoie [{card_id, name, rarity_id, image_path, is_new}, ...]
-create or replace function public.open_booster(p_code text default null)
+drop function if exists public.open_booster(text); -- ancienne signature, sans p_set_id
+create or replace function public.open_booster(p_code text default null, p_set_id int default null)
 returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -421,6 +424,11 @@ begin
   select * into v_settings from public.game_settings where id;
   if not found then
     raise exception 'Réglages du jeu manquants (table game_settings)';
+  end if;
+
+  if p_set_id is not null
+     and not exists (select 1 from public.card_sets where id = p_set_id and in_boosters) then
+    raise exception 'Cette série n''est pas disponible dans les boosters';
   end if;
 
   if nullif(btrim(p_code), '') is null then
@@ -474,7 +482,7 @@ begin
     if v_code.card_id is not null then
       v_card_id := v_code.card_id;
     else
-      v_card_id := private.draw_card(v_code.set_id);
+      v_card_id := private.draw_card(coalesce(v_code.set_id, p_set_id));
     end if;
     v_is_new  := private.add_cards(v_uid, v_card_id, 1);
     select * into v_card from public.cards where id = v_card_id;
@@ -796,7 +804,7 @@ create policy "Membres : lire ses ouvertures de boosters" on public.booster_open
 revoke execute on function
   public.card_catalog(),
   public.my_cards(),
-  public.open_booster(text),
+  public.open_booster(text, int),
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
   public.decline_trade(bigint),
@@ -807,7 +815,7 @@ from public, anon;
 grant execute on function
   public.card_catalog(),
   public.my_cards(),
-  public.open_booster(text),
+  public.open_booster(text, int),
   public.create_trade(uuid, jsonb, jsonb, text),
   public.accept_trade(bigint),
   public.decline_trade(bigint),

@@ -31,7 +31,8 @@ export interface GameApi {
   changePassword(password: string, confirm: string): Promise<void>;
   // uid : le compte connecté ; seuls ses propres échanges sont chargés, même pour un administrateur
   load(uid: string): Promise<GameData>;
-  openBooster(code: string | null): Promise<DrawnCard[]>;
+  // setId : série choisie par le membre (null = toutes les séries des boosters) ; un code lié à une série l'emporte
+  openBooster(code: string | null, setId?: number | null): Promise<DrawnCard[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   acceptTrade(id: number): Promise<TradeStatus>;
   declineTrade(id: number): Promise<void>;
@@ -98,7 +99,8 @@ function createSupabaseGameApi(): GameApi {
       ]);
       return { settings, rarities, sets, cards: mergeCatalog(catalog, known), profiles, userCards, trades };
     },
-    openBooster: code => rpc<DrawnCard[]>('open_booster', { p_code: code || null }),
+    // p_set_id envoyé seulement s'il est choisi : une base sans le patch du choix de série reste utilisable
+    openBooster: (code, setId) => rpc<DrawnCard[]>('open_booster', { p_code: code || null, ...(setId != null && { p_set_id: setId }) }),
     createTrade: (to, offer, request, message) => rpc<number>('create_trade', { p_recipient: to, p_offer: offer, p_request: request, p_message: message || null }),
     acceptTrade: id => rpc<TradeStatus>('accept_trade', { p_trade_id: id }),
     declineTrade: async id => { await rpc('decline_trade', { p_trade_id: id }); },
@@ -246,9 +248,10 @@ function createDemoGameApi(): GameApi {
         trades: db.trades.filter(t => t.proposer_id === me || t.recipient_id === me).sort((a, b) => b.created_at.localeCompare(a.created_at)),
       });
     },
-    async openBooster(code) {
+    async openBooster(code, setId) {
       const me = db.current ?? fail('Connexion requise');
       const p = profile(me) ?? fail('Profil introuvable');
+      if (setId != null && !db.sets.some(s => s.id === setId && s.in_boosters)) fail("Cette série n'est pas disponible dans les boosters");
       let row: DemoCode | undefined;
       if (code && code.trim()) {
         row = db.codes.find(c => c.code.toUpperCase() === code.trim().toUpperCase()) ?? fail('Code inconnu');
@@ -265,7 +268,7 @@ function createDemoGameApi(): GameApi {
         const card = db.cards.find(c => c.id === row!.card_id);
         if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
         drawn = [card];
-      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? null));
+      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? setId ?? null));
       if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else {
         // Avance l'horloge de recharge d'un délai (voir open_booster)
         const cd = intervalMs(db.settings.free_booster_cooldown);

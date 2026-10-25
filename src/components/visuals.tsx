@@ -197,9 +197,10 @@ export function CardBack() {
   );
 }
 
-export function Pack({ setLabel }: { setLabel: string }) {
+// tone : couleurs de la pochette (0 = couleurs du club, voir .pack.tone1 et suivants) ; ribbon : bandeau en coin
+export function Pack({ setLabel, tone = 0, ribbon }: { setLabel: string; tone?: number; ribbon?: string }) {
   return (
-    <div className="pack" aria-hidden="true">
+    <div className={tone ? `pack tone${tone}` : 'pack'} aria-hidden="true">
       <div className="pack-crimp" />
       <div className="pack-body">
         <div className="pack-bands" />
@@ -209,6 +210,7 @@ export function Pack({ setLabel }: { setLabel: string }) {
       </div>
       <div className="pack-crimp bottom" />
       <div className="pack-foil" />
+      {ribbon && <div className="pack-ribbon">{ribbon}</div>}
     </div>
   );
 }

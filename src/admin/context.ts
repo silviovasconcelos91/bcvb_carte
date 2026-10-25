@@ -95,8 +95,14 @@ export function posterTitle(d: AdminIndex, c: BoosterCode): string {
   return 'Un booster à gagner';
 }
 
-// Cartes qui peuvent tomber dans un booster standard
-export function boosterPool(d: AdminIndex) {
+// Cartes qui peuvent tomber dans un booster standard, toutes séries actives ou seulement celle choisie par le membre
+export function boosterPool(d: AdminIndex, setId: number | null = null) {
   const sets = d.lookup.setById;
-  return d.cards.filter(c => c.is_released && c.in_boosters !== false && sets.get(c.set_id)?.in_boosters);
+  return d.cards.filter(c => c.is_released && c.in_boosters !== false && sets.get(c.set_id)?.in_boosters && (setId == null || c.set_id === setId));
+}
+
+// Séries actives qui ont au moins une carte à tirer : celles que les membres peuvent choisir pour leur booster
+export function boosterSets(d: AdminIndex) {
+  const pool = boosterPool(d);
+  return d.sets.filter(s => s.in_boosters && pool.some(c => c.set_id === s.id));
 }

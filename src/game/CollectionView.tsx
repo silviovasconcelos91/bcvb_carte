@@ -27,6 +27,12 @@ export function CollectionView() {
   const total = sumValues(mine);
   const dups = [...mine.values()].reduce((a, q) => a + q - 1, 0);
   const pct = percent(distinct, goal);
+  // Avancement de chaque série affichée, montré à la place du total dès qu'il y a plusieurs séries
+  const bySet = d.sets.filter(s => shown.has(s.id) && cards.some(c => c.set_id === s.id)).map(s => {
+    const inSet = cards.filter(c => c.set_id === s.id);
+    const n = inSet.filter(c => mine.get(c.id)).length, of = inSet.filter(c => !isSecret(L, c)).length;
+    return { s, n, of, pct: percent(n, of) };
+  });
 
   let list = cards.filter(c => set === 'all' || String(c.set_id) === set);
   if (rar.size) list = list.filter(c => c.rarity_id != null && rar.has(c.rarity_id));
@@ -47,12 +53,29 @@ export function CollectionView() {
 
   return (
     <section aria-labelledby="col-title">
-      <div className="score">
-        <p className="score-line"><span className="score-num">{distinct}</span><span className="score-total">/{goal}</span></p>
-        <h2 className="score-label" id="col-title">cartes différentes<br />dans ta collection</h2>
-        <div className="bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Collection complète à ${pct} %`}><span style={{ width: `${pct}%` }} /></div>
-        <p className="score-sub">{plural(total, 'carte', 'cartes')} au total{dups ? `, dont ${plural(dups, 'double', 'doubles')} à échanger` : ''}.</p>
-      </div>
+      {bySet.length > 1 ? (
+        <div>
+          <h2 className="score-label" id="col-title">Cartes différentes dans ta collection, par série</h2>
+          {/* Une série par tuile ; un clic filtre le classeur sur cette série (second clic : toutes les séries) */}
+          <div className="score-sets">
+            {bySet.map(({ s, n, of, pct: p }) => (
+              <button key={s.id} className="score-set" aria-pressed={set === String(s.id)} onClick={() => setSet(set === String(s.id) ? 'all' : String(s.id))}>
+                <span className="score-set-name">{s.name}</span>
+                <span className="score-line"><span className="score-num">{n}</span><span className="score-total">/{of}</span></span>
+                <span className="bar" role="progressbar" aria-valuenow={p} aria-valuemin={0} aria-valuemax={100} aria-label={`${s.name} complète à ${p} %`}><span style={{ width: `${p}%` }} /></span>
+              </button>
+            ))}
+          </div>
+          <p className="score-sub">{plural(total, 'carte', 'cartes')} au total{dups ? `, dont ${plural(dups, 'double', 'doubles')} à échanger` : ''}.</p>
+        </div>
+      ) : (
+        <div className="score">
+          <p className="score-line"><span className="score-num">{distinct}</span><span className="score-total">/{goal}</span></p>
+          <h2 className="score-label" id="col-title">cartes différentes<br />dans ta collection</h2>
+          <div className="bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Collection complète à ${pct} %`}><span style={{ width: `${pct}%` }} /></div>
+          <p className="score-sub">{plural(total, 'carte', 'cartes')} au total{dups ? `, dont ${plural(dups, 'double', 'doubles')} à échanger` : ''}.</p>
+        </div>
+      )}
       <div className="filters">
         <span className="select-wrap">
           <select className="select" value={set} onChange={e => setSet(e.target.value)} aria-label="Série">

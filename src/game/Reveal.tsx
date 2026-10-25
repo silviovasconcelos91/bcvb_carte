@@ -6,7 +6,7 @@ import { plural, reduceMotion, sleep } from '../lib/format';
 import { cardName, colorOf, effectOf, rarClass, rarityLabel, rClass, useLookup } from '../lib/lookup';
 import { CardBack, CardView, MiniArt, Pack } from '../components/visuals';
 import { useGame } from './context';
-import { boosterSetLabel } from './BoosterView';
+import { packOf } from './BoosterView';
 
 type Phase = 'pack' | 'deck' | 'recap';
 type PackStep = '' | 'drop' | 'charge' | 'torn';
@@ -84,6 +84,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   });
   const n = items.length;
   const fresh = drawn.filter(x => x.is_new).length;
+  // Pochette de la série tirée ; cartes de plusieurs séries : booster de toutes les séries
+  const drawnSets = new Set(items.map(x => x.card.set_id));
+  const pack = packOf(d, drawnSets.size === 1 ? [...drawnSets][0] || null : null);
   // Le halo du paquet prend la couleur de la meilleure carte (à partir de l'effet Irisé)
   const tier = (c: Card) => effectOf(L, c.rarity_id ?? 1);
   const bestCard = items.map(x => x.card).reduce<Card | null>((a, c) => (!a || tier(c) > tier(a) ? c : a), null);
@@ -173,7 +176,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
           <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0} ${bestCls}`}>
             <span className="pack-rays" aria-hidden="true" />
             <span className="pack-aura" aria-hidden="true" />
-            <Pack setLabel={boosterSetLabel(d)} />
+            <Pack {...pack} />
             <span className="pack-beam" aria-hidden="true" />
           </div>
         )}
