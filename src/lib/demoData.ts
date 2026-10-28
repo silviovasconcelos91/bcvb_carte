@@ -15,7 +15,7 @@ export const DEMO_SUBTITLES = ['Passeur', 'Passeuse', 'Libéro', 'Central', 'Cen
 
 export const DEMO_SETS: CardSet[] = [
   { id: 1, name: 'Saison 2026-27', in_boosters: true },
-  { id: 2, name: 'Tournoi de Noël', in_boosters: false },
+  { id: 2, name: 'Tournoi de Noël', in_boosters: true },
 ];
 
 type Row = [number, number, string, string, number, Stats | null, string | null];

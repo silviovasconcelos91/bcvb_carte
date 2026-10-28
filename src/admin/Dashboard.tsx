@@ -1,7 +1,7 @@
 import { plural, relTime } from '../lib/format';
 import { Avatar } from '../components/visuals';
 import { rClass, rarityLabel } from '../lib/lookup';
-import { boosterPool, codeCard, codeCardUnreleased, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
+import { boosterPool, boosterSets, codeCard, codeCardUnreleased, codeStatus, nameOf, useAdmin, type AdminTab } from './context';
 
 const PLAYER = /passe|libéro|central|pointu|récept|capitaine|entraîn|joueu/i;
 
@@ -26,10 +26,17 @@ export function Dashboard() {
   const pool = boosterPool(d);
   if (!d.sets.some(s => s.in_boosters)) checks.push(['err', "Aucune série n'est dans les boosters standards : l'ouverture des boosters gratuits échouera.", 'sets']);
   else if (!pool.length) checks.push(['err', 'Aucune carte ne peut tomber dans un booster standard : publie des cartes dans une série active.', 'cards']);
-  const empty = d.rarities.filter(r => r.weight > 0 && !pool.some(c => c.rarity_id === r.id));
-  if (pool.length && empty.length) checks.push(['info', `Aucune carte à tirer en ${empty.map(r => r.label).join(', ')} : ces raretés sont ignorées au tirage pour l'instant.`, 'rarities']);
+  // Le membre choisit la série de son booster : chaque série active est vérifiée à part
+  const dead = d.sets.filter(s => s.in_boosters && !pool.some(c => c.set_id === s.id));
+  if (pool.length && dead.length) checks.push(['err', `${dead.length > 1 ? 'Séries actives' : 'Série active'} sans carte à tirer : ${dead.map(s => s.name).join(', ')}. Publie des cartes dans ${dead.length > 1 ? 'ces séries' : 'cette série'} ou retire-${dead.length > 1 ? 'les' : 'la'} des boosters standards.`, 'sets']);
+  const sets = boosterSets(d);
+  const gaps = sets.map(s => ({ s, empty: d.rarities.filter(r => r.weight > 0 && !pool.some(c => c.set_id === s.id && c.rarity_id === r.id)) })).filter(g => g.empty.length);
+  const labels = (rs: { label: string }[]) => rs.map(r => r.label).join(', ');
+  if (sets.length === 1 && gaps.length) checks.push(['info', `Aucune carte à tirer en ${labels(gaps[0].empty)} : ces raretés sont ignorées au tirage pour l'instant.`, 'rarities']);
+  else if (gaps.length) checks.push(['info', `Raretés sans carte à tirer, ignorées au tirage pour l'instant : ${gaps.map(g => `${g.s.name} (${labels(g.empty)})`).join(' ; ')}.`, 'rarities']);
   const noPhoto = released.filter(c => !c.image_path && PLAYER.test(c.subtitle || '')).length;
   if (noPhoto) checks.push(['info', `${plural(noPhoto, 'carte de joueur publiée est', 'cartes de joueurs publiées sont')} encore sans photo.`, 'cards']);
+  if (d.proposals.length) checks.push(['info', plural(d.proposals.length, 'proposition de carte attend', 'propositions de cartes attendent') + ' ton avis.', 'proposals']);
   if (drafts) checks.push(['info', `${plural(drafts, 'carte est', 'cartes sont')} en préparation, ${drafts > 1 ? 'invisibles' : 'invisible'} pour les membres.`, 'cards']);
   const unreleased = activeCodes.filter(c => codeCardUnreleased(d, c));
   if (unreleased.length) checks.push(['err', `${plural(unreleased.length, 'code actif donne', 'codes actifs donnent')} une carte non publiée, ${unreleased.length > 1 ? 'ils ne fonctionneront' : 'il ne fonctionnera'} pas : ${unreleased.map(c => `${c.code} (${codeCard(d, c)!.name})`).join(', ')}.`, 'codes']);

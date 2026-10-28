@@ -3,7 +3,7 @@ import { plural } from '../lib/format';
 import { Avatar, Logo } from '../components/visuals';
 import { pendingTrades, useGame, type Tab } from './context';
 
-const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collection'], ['trades', 'Échanges'], ['leaderboard', 'Classement']];
+const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collection'], ['trades', 'Échanges'], ['leaderboard', 'Classement'], ['propose', 'Proposer']];
 
 export function Header({ onLogout, onSwitch, onAccount }: { onLogout: () => void; onSwitch: (uid: string) => void; onAccount: () => void }) {
   const { api, d, uid, tab, setTab } = useGame();

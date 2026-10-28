@@ -1,9 +1,12 @@
-import { DEMO } from '../config';
-import type { BoosterCode, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Profile, Rarity, Settings, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
+import { CONFIG, DEMO } from '../config';
+import type { BoosterCode, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Photo, Profile, Proposal, ProposalInput, Rarity, Settings, Subtitle, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
-import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
-import { fmtDate, freeBoosters, intervalMs } from '../lib/format';
+import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
+import { fmtDate, freeBoosters, intervalMs, slug } from '../lib/format';
+
+export const PROPOSAL_MAX = 5;
+export const PROPOSAL_LIMIT_MSG = "Tu as déjà 5 propositions en cours d'examen. Tu pourras en proposer d'autres quand l'une d'elles aura été examinée.";
 
 export interface GameData {
   settings: Settings;
@@ -28,7 +31,8 @@ export interface GameApi {
   changePassword(password: string, confirm: string): Promise<void>;
   // uid : le compte connecté ; seuls ses propres échanges sont chargés, même pour un administrateur
   load(uid: string): Promise<GameData>;
-  openBooster(code: string | null): Promise<DrawnCard[]>;
+  // setId : série choisie par le membre (null = toutes les séries des boosters) ; un code lié à une série l'emporte
+  openBooster(code: string | null, setId?: number | null): Promise<DrawnCard[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   acceptTrade(id: number): Promise<TradeStatus>;
   declineTrade(id: number): Promise<void>;
@@ -37,6 +41,10 @@ export interface GameApi {
   // Classement d'une série active : membres ayant au moins une carte, du meilleur au moins bon
   leaderboard(setId: number): Promise<LeaderRow[]>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
+  // Propositions de cartes du membre connecté, les plus anciennes d'abord
+  myProposals(): Promise<Proposal[]>;
+  propose(uid: string, input: ProposalInput, photo: Photo): Promise<void>;
+  subtitles(): Promise<Subtitle[]>;
   // mode démo uniquement
   demo?: {
     members(): { id: string; username: string; count: number }[];
@@ -91,7 +99,8 @@ function createSupabaseGameApi(): GameApi {
       ]);
       return { settings, rarities, sets, cards: mergeCatalog(catalog, known), profiles, userCards, trades };
     },
-    openBooster: code => rpc<DrawnCard[]>('open_booster', { p_code: code || null }),
+    // p_set_id envoyé seulement s'il est choisi : une base sans le patch du choix de série reste utilisable
+    openBooster: (code, setId) => rpc<DrawnCard[]>('open_booster', { p_code: code || null, ...(setId != null && { p_set_id: setId }) }),
     createTrade: (to, offer, request, message) => rpc<number>('create_trade', { p_recipient: to, p_offer: offer, p_request: request, p_message: message || null }),
     acceptTrade: id => rpc<TradeStatus>('accept_trade', { p_trade_id: id }),
     declineTrade: async id => { await rpc('decline_trade', { p_trade_id: id }); },
@@ -99,6 +108,31 @@ function createSupabaseGameApi(): GameApi {
     cancelTrade: async id => { await rpc('cancel_trade', { p_trade_id: id }); },
     leaderboard: setId => rpc<LeaderRow[]>('leaderboard', { p_set_id: setId }),
     imageUrls: signedUrls,
+    myProposals: async () => must<Proposal[]>(await sb.from('card_proposals').select('*').order('created_at')),
+    async subtitles() {
+      const r = await sb.from('card_subtitles').select('*').order('label');
+      return r.error ? [] : (r.data as Subtitle[]);
+    },
+    async propose(uid, input, photo) {
+      // Limite vérifiée avant tout envoi de fichier (la base la re-vérifie à l'insertion)
+      const { count, error } = await sb.from('card_proposals').select('id', { count: 'exact', head: true }).eq('user_id', uid);
+      if (error) throw new Error(error.message);
+      if ((count ?? 0) >= PROPOSAL_MAX) throw new Error(PROPOSAL_LIMIT_MSG);
+      const base = `proposals/${uid}/${slug(input.name)}-${Date.now().toString(36)}`;
+      const image_path = `${base}.jpg`, thumb_path = `${base}.thumb.jpg`;
+      const opts = { contentType: 'image/jpeg', upsert: false, cacheControl: '604800' };
+      for (const [path, blob] of [[image_path, photo.full], [thumb_path, photo.thumb]] as const) {
+        const { error: upErr } = await sb.storage.from(CONFIG.bucket).upload(path, blob, opts);
+        if (upErr) {
+          // Dépôt refusé par les règles du stockage : souvent la limite de 10 fichiers atteinte
+          const { status, statusCode } = upErr as { status?: number; statusCode?: string };
+          const denied = status === 403 || statusCode === '403' || /row-level security|violates/i.test(upErr.message);
+          throw new Error(denied ? 'Envoi de la photo refusé. Tu as peut-être atteint la limite de propositions.' : upErr.message);
+        }
+      }
+      // Si l'insertion échoue, l'erreur remonte telle quelle : les fichiers restent orphelins (le membre ne peut pas les supprimer)
+      must(await sb.from('card_proposals').insert({ ...input, user_id: uid, image_path, thumb_path }));
+    },
   };
 }
 
@@ -126,6 +160,7 @@ interface DemoDb {
   redemptions: { code_id: number; user_id: string }[];
   trades: Trade[];
   nextTradeId: number;
+  proposals: Proposal[];
 }
 
 function createDemoGameApi(): GameApi {
@@ -156,7 +191,7 @@ function createDemoGameApi(): GameApi {
       version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
-      owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1,
+      owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1, proposals: [],
       codes: clone(DEMO_CODES),
     };
     for (const p of db.profiles) for (let i = 0; i < 14; i++) add(p.id, draw(null).id, 1);
@@ -179,6 +214,7 @@ function createDemoGameApi(): GameApi {
   const stored = readStore<DemoDb>(KEY);
   if (stored?.version === 1) {
     db = stored;
+    db.proposals ??= []; // démo enregistrée avant les propositions
     for (const p of db.profiles) p.status ??= 'active'; // démo enregistrée avant les statuts
     for (const c of DEMO_CODES) if (!db.codes.some(x => x.code === c.code)) db.codes.push(clone(c)); // codes ajoutés depuis
   } else seed();
@@ -212,9 +248,10 @@ function createDemoGameApi(): GameApi {
         trades: db.trades.filter(t => t.proposer_id === me || t.recipient_id === me).sort((a, b) => b.created_at.localeCompare(a.created_at)),
       });
     },
-    async openBooster(code) {
+    async openBooster(code, setId) {
       const me = db.current ?? fail('Connexion requise');
       const p = profile(me) ?? fail('Profil introuvable');
+      if (setId != null && !db.sets.some(s => s.id === setId && s.in_boosters)) fail("Cette série n'est pas disponible dans les boosters");
       let row: DemoCode | undefined;
       if (code && code.trim()) {
         row = db.codes.find(c => c.code.toUpperCase() === code.trim().toUpperCase()) ?? fail('Code inconnu');
@@ -231,7 +268,7 @@ function createDemoGameApi(): GameApi {
         const card = db.cards.find(c => c.id === row!.card_id);
         if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
         drawn = [card];
-      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? null));
+      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? setId ?? null));
       if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else {
         // Avance l'horloge de recharge d'un délai (voir open_booster)
         const cd = intervalMs(db.settings.free_booster_cooldown);
@@ -303,6 +340,22 @@ function createDemoGameApi(): GameApi {
         .sort((a, b) => b.distinct_count - a.distinct_count || a.username.localeCompare(b.username));
     },
     async imageUrls() { return {}; },
+    async myProposals() { return clone(db.proposals.filter(p => p.user_id === db.current)); },
+    async subtitles() { return DEMO_SUBTITLES.map((label, i) => ({ id: i + 1, label })); },
+    async propose(uid, input) {
+      const me = db.current ?? fail('Connexion requise');
+      if (uid !== me) fail('Connexion requise');
+      if (db.proposals.filter(p => p.user_id === me).length >= PROPOSAL_MAX) fail(PROPOSAL_LIMIT_MSG);
+      const rarity = db.rarities.find(r => r.id === input.rarity_id);
+      if (!rarity || rarity.is_secret) fail('Rareté invalide');
+      // Chemins fictifs : la démo n'affiche pas les photos
+      const base = `proposals/${me}/${slug(input.name)}-${Date.now().toString(36)}`;
+      db.proposals.push({
+        ...clone(input), id: Math.max(0, ...db.proposals.map(p => p.id)) + 1, user_id: me, created_at: nowIso(),
+        image_path: `${base}.jpg`, thumb_path: `${base}.thumb.jpg`,
+      });
+      save();
+    },
     demo: {
       members: () => db.profiles.map(p => ({ id: p.id, username: p.username, count: Object.values(inv(p.id)).reduce((a, b) => a + b, 0) })),
       preview: () => clone({ cards: db.cards.filter(c => c.is_released), rarities: db.rarities, sets: db.sets }),

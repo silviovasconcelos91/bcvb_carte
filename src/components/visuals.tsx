@@ -122,23 +122,36 @@ export function MiniArt({ card }: { card: Card }) {
   return url ? <img src={url} alt="" /> : <CardArtSvg card={card} />;
 }
 
+// Médaille cachée : récompense discrète des membres qui accumulent une même carte (jamais annoncée dans le jeu)
+const MEDALS = [
+  { min: 200, tier: 'diamond', label: 'Médaille de diamant' },
+  { min: 100, tier: 'platinum', label: 'Médaille de platine' },
+  { min: 50, tier: 'gold', label: "Médaille d'or" },
+  { min: 25, tier: 'silver', label: "Médaille d'argent" },
+  { min: 10, tier: 'bronze', label: 'Médaille de bronze' },
+] as const;
+export const medalOf = (copies: number) => MEDALS.find(m => copies >= m.min) ?? null;
+
 interface CardViewProps {
   card: Card;
   qty?: number;
+  copies?: number; // exemplaires possédés, pour la médaille (par défaut qty)
   isNew?: boolean;
   tilt?: boolean;
   size?: ArtSize; // 'full' pour les grands affichages : carte retournée, fiche, aperçu de l'éditeur
 }
 
-export function CardView({ card, qty = 0, isNew = false, tilt = false, size = 'thumb' }: CardViewProps) {
+export function CardView({ card, qty = 0, copies = qty, isNew = false, tilt = false, size = 'thumb' }: CardViewProps) {
   const L = useLookup();
   const tiltProps = useTilt(tilt);
   const set = L.setById.get(card.set_id);
   const stats = cardStats(card);
   const url = artUrl(L, card, size);
   const r = effectOf(L, card.rarity_id);
+  const medal = medalOf(copies);
   return (
-    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}`} {...tiltProps}>
+    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}${medal ? ` tier-${medal.tier}` : ''}`} {...tiltProps}>
+      {medal && <span className="card-aura" aria-hidden="true" />}
       <div className="card-body">
         <div className="card-face">
           <div className="card-top">
@@ -170,9 +183,11 @@ export function CardView({ card, qty = 0, isNew = false, tilt = false, size = 't
         {r >= 5 && <div className="card-holo" aria-hidden="true" />}
         <div className="card-fx" aria-hidden="true" />
         <div className="card-glare" aria-hidden="true" />
+        {medal && <div className="card-tier" aria-hidden="true" />}
       </div>
       {qty > 1 && <span className="qty">×{qty}</span>}
       {isNew && <span className="new-badge">Nouvelle</span>}
+      {medal && <span className={`medal ${medal.tier}`} title={`${medal.label} : ${medal.min} exemplaires`}><span>{medal.min}</span></span>}
     </div>
   );
 }
@@ -197,9 +212,10 @@ export function CardBack() {
   );
 }
 
-export function Pack({ setLabel }: { setLabel: string }) {
+// tone : couleurs de la pochette (0 = couleurs du club, voir .pack.tone1 et suivants) ; ribbon : bandeau en coin
+export function Pack({ setLabel, tone = 0, ribbon }: { setLabel: string; tone?: number; ribbon?: string }) {
   return (
-    <div className="pack" aria-hidden="true">
+    <div className={tone ? `pack tone${tone}` : 'pack'} aria-hidden="true">
       <div className="pack-crimp" />
       <div className="pack-body">
         <div className="pack-bands" />
@@ -209,6 +225,7 @@ export function Pack({ setLabel }: { setLabel: string }) {
       </div>
       <div className="pack-crimp bottom" />
       <div className="pack-foil" />
+      {ribbon && <div className="pack-ribbon">{ribbon}</div>}
     </div>
   );
 }

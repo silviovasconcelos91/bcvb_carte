@@ -6,7 +6,7 @@ import { EFFECTS, LookupContext, RarityStyles, colorOf, fxClass, fxInfo, fxOf, i
 import { Modal } from '../components/Modal';
 import { useConfirm } from '../components/Confirm';
 import { useRunner } from '../components/Toasts';
-import { boosterPool, useAdmin, useRunRefresh, type AdminIndex } from './context';
+import { boosterPool, boosterSets, useAdmin, useRunRefresh, type AdminIndex } from './context';
 
 /* ------------------------------- Séries ------------------------------- */
 export function SetsAdmin() {
@@ -33,7 +33,7 @@ export function SetsAdmin() {
   return (
     <>
       <div className="view-head"><h2 className="h2">Séries</h2></div>
-      <p className="lead">Une série regroupe des cartes numérotées. Seules les séries actives alimentent les boosters gratuits ; une série inactive reste disponible avec un code dédié.</p>
+      <p className="lead">Une série regroupe des cartes numérotées. Seules les séries actives alimentent les boosters gratuits ; avec plusieurs séries actives, chaque membre choisit la série de son booster. Une série inactive reste disponible avec un code dédié.</p>
       <form className="toolbar" onSubmit={create}>
         <input className="input grow-input" placeholder="Nom de la nouvelle série, ex. Saison 2027-28" required maxLength={60} value={name} onChange={e => setName(e.target.value)} />
         <button className="btn primary">Créer la série</button>
@@ -152,9 +152,10 @@ export function SubtitlesAdmin() {
 /* ------------------------------- Raretés ------------------------------ */
 const fmtPct = (x: number) => `${(x * 100).toLocaleString('fr-FR', { maximumFractionDigits: x < 0.1 ? 1 : 0 })} %`;
 
-// Probabilité par carte et chance d'en avoir au moins une par booster, avec les cartes tirables aujourd'hui
-function odds(d: AdminIndex, rows: Pick<Rarity, 'id' | 'weight'>[]) {
-  const pool = boosterPool(d);
+// Probabilité par carte et chance d'en avoir au moins une par booster, avec les cartes tirables aujourd'hui.
+// Le membre choisit la série de son booster : le calcul se fait série par série (null = toutes les séries actives).
+function odds(d: AdminIndex, rows: Pick<Rarity, 'id' | 'weight'>[], setId: number | null) {
+  const pool = boosterPool(d, setId);
   const live = rows.filter(r => r.weight > 0 && pool.some(c => c.rarity_id === r.id));
   const total = live.reduce((s, r) => s + r.weight, 0);
   return new Map(rows.map(r => {
@@ -188,7 +189,10 @@ export function RaritiesAdmin() {
 
   // Aperçu avec les réglages en cours, pas encore enregistrés
   const draft: Rarity[] = rows.map(r => ({ id: r.id, code: r.code, label: r.label, weight: +r.weight || 0, is_secret: r.is_secret, effect: r.effect, color: r.color, ...symbols(r) }));
-  const o = odds(d, draft);
+  const oddsSets = boosterSets(d);
+  const [oddsSetId, setOddsSetId] = useState<number | null>(null);
+  const oddsSet = oddsSets.find(s => s.id === oddsSetId) ?? oddsSets[oddsSets.length - 1];
+  const o = odds(d, draft, oddsSet?.id ?? null);
   const previewLookup = { ...d.lookup, rarityById: new Map(draft.map(r => [r.id, r])) };
   const sample = d.cards.find(c => c.rarity_id === current?.id && c.is_released) ?? d.cards.find(c => c.is_released) ?? d.cards[0];
   const sampleFor = (rarity_id: number): Card => (sample
@@ -253,6 +257,14 @@ export function RaritiesAdmin() {
         </LookupContext.Provider>
       )}
       <form onSubmit={save}>
+        {oddsSets.length > 1 && (
+          <div className="toolbar">
+            <label htmlFor="odds-set">Probabilités d'un booster de la série</label>
+            <span className="select-wrap"><select id="odds-set" className="select" value={oddsSet.id} onChange={e => setOddsSetId(+e.target.value)}>
+              {oddsSets.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select></span>
+          </div>
+        )}
         <div className="table-wrap"><table className="tbl">
           <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th>Losanges</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
@@ -283,7 +295,7 @@ export function RaritiesAdmin() {
         </table></div>
         <datalist id="rar-badges">{BADGES.map(b => <option key={b} value={b} />)}</datalist>
         <div className="form-foot">
-          <p className="muted">Calcul pour un booster standard de {plural(d.settings.booster_size, 'carte', 'cartes')}, avec les cartes publiées actuellement. Une rareté utilisée par des cartes ne peut pas être supprimée : mets son poids à 0 pour la retirer du tirage.</p>
+          <p className="muted">Calcul pour un booster standard de {plural(d.settings.booster_size, 'carte', 'cartes')}{oddsSet ? ` de la série ${oddsSet.name}` : ''}, avec les cartes publiées actuellement. Une rareté utilisée par des cartes ne peut pas être supprimée : mets son poids à 0 pour la retirer du tirage.</p>
           <button className="btn primary" disabled={busy}>Enregistrer les raretés</button>
         </div>
       </form>
