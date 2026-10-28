@@ -3,14 +3,16 @@ import { createPortal } from 'react-dom';
 import { partialCard } from '../api/game';
 import type { Card, DrawnCard } from '../lib/types';
 import { plural, reduceMotion, sleep } from '../lib/format';
-import { cardName, colorOf, effectOf, rarClass, rarityLabel, rClass, useLookup } from '../lib/lookup';
+import { cardName, colorOf, effectOf, fxOf, rarClass, rarityLabel, rClass, useLookup } from '../lib/lookup';
 import { CardBack, CardView, MiniArt, Pack } from '../components/visuals';
 import { useGame } from './context';
 import { packOf } from './BoosterView';
 
 type Phase = 'pack' | 'deck' | 'recap';
 type PackStep = '' | 'drop' | 'charge' | 'torn';
-interface Fx { r: number; id: number; key: number; x: number; y: number }
+interface Fx { r: number; id: number; e: number; key: number; x: number; y: number; cracks?: { w: number; h: number; d: string[] } }
+// Effets de rareté qui ont leur propre ouverture
+const FX_GLASS = 16, FX_DARK = 17;
 
 // Ouverture du paquet : il tombe, tremble de plus en plus fort, puis se déchire dans un flash
 const PACK_STEPS: [PackStep, number][] = [['drop', 550], ['charge', 1050], ['torn', 800]];
@@ -51,6 +53,42 @@ function rain(el: HTMLElement, r: number, hex: string) {
     el.appendChild(s);
     setTimeout(() => s.remove(), (dur + 0.8) * 1000);
   }
+}
+
+// Verre brisé : fissures qui partent du point d'impact (x, y) jusqu'aux bords de l'écran (w × h),
+// avec quelques branches et deux anneaux qui relient les fissures autour de l'impact
+function cracks(x: number, y: number, w: number, h: number) {
+  const reach = Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
+  const n = 9 + Math.floor(Math.random() * 4);
+  const rays: string[] = [], branches: string[] = [];
+  const rings: [number, number][][] = [[], []];
+  const pt = (px: number, py: number) => `${px.toFixed(0)} ${py.toFixed(0)}`;
+  for (let i = 0; i < n; i++) {
+    let a = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+    let px = x, py = y, dist = 0;
+    let d = `M${pt(px, py)}`;
+    while (dist < reach) {
+      const step = 25 + Math.random() * 55;
+      a += (Math.random() - 0.5) * 0.35;
+      px += Math.cos(a) * step;
+      py += Math.sin(a) * step;
+      const before = dist;
+      dist += step;
+      d += `L${pt(px, py)}`;
+      [70, 170].forEach((r, k) => { if (before < r && dist >= r) rings[k].push([px, py]); });
+      if (dist > 60 && Math.random() < 0.18) {
+        const b = a + (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5);
+        const len = 40 + Math.random() * 80;
+        branches.push(`M${pt(px, py)}L${pt(px + Math.cos(b) * len * 0.5, py + Math.sin(b) * len * 0.5)}L${pt(px + Math.cos(b + 0.2) * len, py + Math.sin(b + 0.2) * len)}`);
+      }
+    }
+    rays.push(d);
+  }
+  const links = rings.flatMap(ring => ring.flatMap(([ax, ay], i) => {
+    const [bx, by] = ring[(i + 1) % ring.length];
+    return Math.random() < 0.75 ? [`M${pt(ax, ay)}L${pt((ax + bx) / 2 + (Math.random() - 0.5) * 14, (ay + by) / 2 + (Math.random() - 0.5) * 14)}L${pt(bx, by)}`] : [];
+  }));
+  return { w, h, d: [...rays, ...links, ...branches] };
 }
 
 // Ouverture d'un booster : le paquet se déchire, puis les cartes arrivent en pile.
@@ -117,7 +155,9 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
     if (!flipped) {
       const id = items[cur].card.rarity_id ?? 1;
       const r = effectOf(L, id);
-      const hex = colorOf(L.rarityById.get(id) ?? { id });
+      const rarity = L.rarityById.get(id) ?? { id };
+      const hex = colorOf(rarity);
+      const e = fxOf(rarity);
       const show = r >= 4 && !reduceMotion();
       if (show && SUSPENSE[r]) {
         lock.current = true;
@@ -129,11 +169,14 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
       setFlipped(true);
       if (show) {
         const b = deckRef.current?.getBoundingClientRect();
-        if (b) setFx({ r, id, key: Date.now(), x: b.left + b.width / 2, y: b.top + b.height / 2 });
-        // Les éclats partent quand la carte est à moitié retournée
+        if (b) {
+          const x = b.left + b.width / 2, y = b.top + b.height / 2;
+          setFx({ r, id, e, key: Date.now(), x, y, cracks: e === FX_GLASS ? cracks(x, y, window.innerWidth, window.innerHeight) : undefined });
+        }
+        // Les éclats partent quand la carte est à moitié retournée (pas de pluie de pièces pour le côté obscur)
         setTimeout(() => {
           if (topRef.current) burst(topRef.current, r, hex);
-          if (r >= 5 && rootRef.current) rain(rootRef.current, r, hex);
+          if (r >= 5 && e !== FX_DARK && rootRef.current) rain(rootRef.current, r, hex);
         }, 280);
       }
       return;
@@ -168,10 +211,18 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
           {fx.r >= 5 && <span className="fx-rays" />}
           <span className="fx-shock" />
           {fx.r >= 6 && <span className="fx-shock late" />}
+          {fx.e === FX_DARK && <span className="fx-flames" />}
           <span className="reveal-flash" />
         </div>
       )}
-      <div className={`reveal-stage${fx && fx.r >= 5 ? ` quake-r${fx.r}` : ''}`}>
+      {/* Par-dessus la carte : l'écran se fissure (verre brisé) ou l'ombre avance depuis les bords (côté obscur) */}
+      {fx?.cracks && (
+        <svg key={fx.key} className="fx-cracks" viewBox={`0 0 ${fx.cracks.w} ${fx.cracks.h}`} preserveAspectRatio="none" aria-hidden="true">
+          {fx.cracks.d.map((d, i) => <path key={i} d={d} pathLength={1} style={{ '--i': i } as CSSProperties} />)}
+        </svg>
+      )}
+      {fx?.e === FX_DARK && <div key={fx.key} className="fx-shade" style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true" />}
+      <div className={`reveal-stage${fx && fx.r >= 5 ? ` quake-r${fx.r}` : fx?.e === FX_GLASS ? ' quake-r5' : ''}`}>
         {phase === 'pack' && (
           <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0} ${bestCls}`}>
             <span className="pack-rays" aria-hidden="true" />

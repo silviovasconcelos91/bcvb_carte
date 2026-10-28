@@ -708,6 +708,19 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .fx-r6 .fx-rays { background: repeating-conic-gradient(rgba(255, 77, 166, .7) 0 5deg, transparent 5deg 15deg, rgba(255, 214, 0, .7) 15deg 20deg, transparent 20deg 30deg, rgba(0, 224, 255, .7) 30deg 35deg, transparent 35deg 45deg, rgba(134, 96, 255, .7) 45deg 50deg, transparent 50deg 60deg); animation: rays-in .7s ease-out .25s both, spin 10s linear infinite; }
 .fx-shock { position: absolute; left: var(--fx-x); top: var(--fx-y); width: 300px; aspect-ratio: 1; translate: -50% -50%; border-radius: 50%; box-shadow: 0 0 0 6px var(--fx), 0 0 40px 10px var(--fx), inset 0 0 30px 6px var(--fx); opacity: 0; animation: shock .9s cubic-bezier(.2, .7, .3, 1) .25s forwards; }
 .fx-shock.late { animation-delay: .55s; }
+/* Verre brisé : flash sec à l'impact, puis l'écran se fissure de la carte jusqu'aux bords (fissures tracées une à une) */
+.reveal-fx.fx16 .reveal-flash { --flash: 1; animation-duration: .4s; animation-delay: .25s; background: radial-gradient(circle at var(--fx-x, 50%) var(--fx-y, 45%), #fff, rgba(220, 238, 255, .5) 18%, transparent 45%); }
+.fx-cracks { position: fixed; inset: 0; z-index: 6; width: 100%; height: 100%; pointer-events: none; fill: none; stroke: rgba(236, 246, 255, .92); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 1px rgba(0, 0, 0, .85)) drop-shadow(0 0 5px rgba(127, 184, 230, .75)); animation: cracks-fade 2.6s ease-out .3s forwards; }
+.fx-cracks path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: crack .3s cubic-bezier(.3, 0, .2, 1) calc(.28s + min(var(--i), 40) * 10ms) forwards; }
+@keyframes crack { to { stroke-dashoffset: 0; } }
+@keyframes cracks-fade { 0%, 45% { opacity: 1; } to { opacity: .45; } }
+/* Côté obscur : flash rouge sombre, l'écran s'assombrit et l'ombre avance depuis les bords jusqu'à la carte, cernée de flammes noires */
+@property --hole { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.reveal-fx.fx17 .reveal-flash { --flash: .9; background: radial-gradient(circle at var(--fx-x, 50%) var(--fx-y, 45%), rgba(255, 60, 60, .9), rgba(140, 10, 20, .6) 30%, rgba(20, 0, 4, .4) 70%); }
+.fx-shade { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: radial-gradient(circle at var(--fx-x) var(--fx-y), transparent var(--hole), rgba(60, 0, 8, .55) calc(var(--hole) + 6vmax), rgba(4, 0, 2, .93) calc(var(--hole) + 30vmax)); animation: shade-in 1.4s cubic-bezier(.2, .8, .3, 1) .25s both; }
+@keyframes shade-in { from { opacity: 0; --hole: 90vmax; } 15% { opacity: 1; } to { opacity: 1; --hole: 250px; } }
+.fx-flames { position: absolute; left: var(--fx-x); top: var(--fx-y); width: min(560px, 120vw); aspect-ratio: .78; translate: -50% -50%; border-radius: 46%; background: radial-gradient(closest-side, transparent 58%, rgba(0, 0, 0, .95) 72%, rgba(40, 0, 6, .6) 86%, transparent); filter: url(#fx-dark-flame); opacity: 0; animation: flames-in .7s ease-out .3s forwards; }
+@keyframes flames-in { from { opacity: 0; scale: .7; } to { opacity: 1; scale: 1; } }
 
 /* Suspense : la carte tremble et s'illumine avant de se retourner */
 .deck .flip.is-top.charging:not(.is-flipped) .flip-inner { animation: tremble .1s linear infinite; }
