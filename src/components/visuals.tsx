@@ -124,6 +124,7 @@ export function MiniArt({ card }: { card: Card }) {
 
 // Médaille cachée : récompense discrète des membres qui accumulent une même carte (jamais annoncée dans le jeu)
 const MEDALS = [
+  { min: 200, tier: 'diamond', label: 'Médaille de diamant' },
   { min: 100, tier: 'platinum', label: 'Médaille de platine' },
   { min: 50, tier: 'gold', label: "Médaille d'or" },
   { min: 25, tier: 'silver', label: "Médaille d'argent" },
@@ -149,7 +150,8 @@ export function CardView({ card, qty = 0, copies = qty, isNew = false, tilt = fa
   const r = effectOf(L, card.rarity_id);
   const medal = medalOf(copies);
   return (
-    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}`} {...tiltProps}>
+    <div className={`card ${rarClass(L, card.rarity_id ?? 1)}${medal ? ` tier-${medal.tier}` : ''}`} {...tiltProps}>
+      {medal && <span className="card-aura" aria-hidden="true" />}
       <div className="card-body">
         <div className="card-face">
           <div className="card-top">
@@ -181,6 +183,7 @@ export function CardView({ card, qty = 0, copies = qty, isNew = false, tilt = fa
         {r >= 5 && <div className="card-holo" aria-hidden="true" />}
         <div className="card-fx" aria-hidden="true" />
         <div className="card-glare" aria-hidden="true" />
+        {medal && <div className="card-tier" aria-hidden="true" />}
       </div>
       {qty > 1 && <span className="qty">×{qty}</span>}
       {isNew && <span className="new-badge">Nouvelle</span>}

@@ -440,7 +440,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
   50% { box-shadow: 0 0 0 1px var(--hc-l), 0 10px 36px -2px color-mix(in srgb, var(--hc) 85%, transparent); }
 }
 .qty { position: absolute; bottom: -7px; left: -7px; z-index: 2; min-width: 32px; height: 26px; padding: 0 7px; border-radius: 13px; background: #13213C; color: #fff; font: 700 16px/26px var(--font-c); text-align: center; box-shadow: 0 0 0 2px var(--bg); }
-/* Médaille cachée (10, 25, 50, 100 exemplaires) : pastille métallique en coin, mesurée sur la carte */
+/* Médaille cachée (10, 25, 50, 100, 200 exemplaires) : pastille métallique en coin, mesurée sur la carte */
 .medal { --m1: #E8B07A; --m2: #9C5A2B; --m3: #5E3417; --mt: #3B1E0B; position: absolute; right: -6%; bottom: -4%; z-index: 2; display: grid; place-items: center; width: clamp(26px, 19cqw, 54px); aspect-ratio: 1; border-radius: 50%; background: conic-gradient(from 210deg, var(--m1), var(--m2), var(--m1), var(--m3), var(--m1)); box-shadow: 0 0 0 2px var(--bg), 0 3px 8px rgba(0, 0, 0, .4); pointer-events: auto; }
 .medal::before { content: ""; position: absolute; inset: 14%; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .55); background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .55), transparent 55%), linear-gradient(150deg, var(--m1), var(--m2)); }
 .medal span { position: relative; color: var(--mt); font: 800 clamp(10px, 7.5cqw, 21px)/1 var(--font-c); letter-spacing: -.02em; text-shadow: 0 1px 0 rgba(255, 255, 255, .45); }
@@ -450,6 +450,42 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .medal.platinum::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .9) 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: medal-glint 3s ease-in-out infinite; }
 @keyframes medal-shine { 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 14px rgba(191, 217, 242, .9); } }
 @keyframes medal-glint { 60%, 100% { background-position: 150% 0; } }
+/* Diamant : facettes glacées, éclat plus vif et plus fréquent que le platine */
+.medal.diamond { --m1: #FFFFFF; --m2: #9FEAFF; --m3: #4FA8D8; --mt: #0E2A44; background: conic-gradient(from 0deg, #fff, var(--m2), #E6FBFF, var(--m3), #fff, var(--m2), #CFF4FF, var(--m3), #fff, var(--m2), #E6FBFF, var(--m3), #fff); animation: medal-shine-diamond 2s ease-in-out infinite; }
+.medal.diamond::before { background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .8), transparent 55%), conic-gradient(from 22deg, #E6FBFF, var(--m2), #fff, var(--m2), #E6FBFF, var(--m2), #fff, var(--m2), #E6FBFF); }
+.medal.diamond::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(115deg, transparent 35%, #fff 50%, transparent 65%) -150% 0 / 250% 100% no-repeat; animation: medal-glint 2s ease-in-out infinite; }
+@keyframes medal-shine-diamond { 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 18px 2px rgba(159, 234, 255, .95); } }
+
+/* Calque de médaille, par-dessus l'effet de rareté, de plus en plus marqué à chaque palier :
+   bronze liseré cuivré · argent liseré et reflet qui balaie · or cadre épais et halo ·
+   platine liseré de lumière qui tourne et halo qui pulse · diamant (légendaire) cadre de cristal qui respire et étincelles qui montent */
+@property --la { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.card-aura { display: none; position: absolute; inset: 0; border-radius: 4.8cqw; pointer-events: none; box-shadow: 0 0 var(--ab, 3cqw) var(--as, .5cqw) var(--ac); }
+.card-tier { --tw: .7cqw; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; box-shadow: inset 0 0 0 var(--tw) var(--tc); }
+/* Liseré mobile, découpé sur la bordure du calque */
+.card-tier::before { content: ""; display: none; position: absolute; inset: 0; padding: var(--tw); border-radius: inherit; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+.card-tier::after { content: ""; display: none; position: absolute; inset: 0; }
+.tier-bronze .card-tier { --tc: rgba(201, 129, 74, .85); }
+.tier-silver .card-tier { --tw: .8cqw; --tc: rgba(222, 228, 236, .9); }
+.tier-silver .card-tier::before { display: block; background: linear-gradient(115deg, transparent 40%, #fff 50%, transparent 60%) -150% 0 / 250% 100% no-repeat; animation: tier-sweep 7s ease-in-out infinite; }
+.tier-gold .card-tier { --tw: 1.2cqw; --tc: rgba(233, 184, 74, .9); }
+.tier-gold .card-aura { display: block; --ac: rgba(255, 190, 50, .35); }
+.tier-platinum .card-tier { --tw: 1.2cqw; --tc: rgba(207, 227, 247, .9); }
+.tier-platinum .card-tier::before { display: block; background: conic-gradient(from var(--la), transparent 0 72%, rgba(191, 217, 242, .8) 82%, #fff 86%, rgba(191, 217, 242, .8) 90%, transparent); animation: tier-spin 5s linear infinite; }
+.tier-platinum .card-aura { display: block; --ac: rgba(191, 217, 242, .45); animation: tier-aura 3s ease-in-out infinite; }
+/* Diamant : carte légendaire, cadre de cristal taillé aux reflets de feu */
+.tier-diamond .card-tier { --tw: 2.2cqw; --tc: rgba(214, 245, 255, .95); box-shadow: inset 0 0 0 var(--tw) var(--tc), inset 0 0 2.4cqw 2.2cqw rgba(159, 234, 255, .4); animation: legend-frame 2.6s ease-in-out infinite; }
+.tier-diamond .card-tier::before { display: block; background: conic-gradient(from var(--la), transparent 0 68%, rgba(159, 234, 255, .9) 80%, #fff 85%, rgba(255, 179, 218, .7) 90%, transparent), conic-gradient(#fff 0 12.5%, #CFF4FF 0 25%, #8FD3F0 0 37.5%, #EAFBFF 0 50%, #B8E9FF 0 62.5%, #fff 0 75%, #9ADCF5 0 87.5%, #E3D9FF 0) 0 0 / 2.2cqw 2.2cqw; animation: tier-spin 4s linear infinite; }
+.tier-diamond .card-tier::after { display: block; background: radial-gradient(circle, #fff 0 .45cqw, rgba(255, 255, 255, 0) 1.3cqw) 0 0 / 23cqw 40cqw, radial-gradient(circle, #9FEAFF 0 .35cqw, rgba(159, 234, 255, 0) 1cqw) 11cqw 20cqw / 31cqw 55cqw; -webkit-mask: linear-gradient(to top, #000 15%, transparent 80%); mask: linear-gradient(to top, #000 15%, transparent 80%); animation: legend-rise 6s linear infinite; }
+.tier-diamond .card-aura { display: block; --ab: 4cqw; --as: .8cqw; --ac: rgba(159, 234, 255, .5); animation: tier-aura 2.6s ease-in-out infinite; }
+@keyframes tier-sweep { 40%, 100% { background-position: 150% 0; } }
+@keyframes tier-spin { to { --la: 360deg; } }
+@keyframes tier-aura { 50% { box-shadow: 0 0 calc(var(--ab, 3cqw) * 1.8) calc(var(--as, .5cqw) * 2.5) var(--ac); } }
+@keyframes legend-frame { 50% { box-shadow: inset 0 0 0 2.2cqw #fff, inset 0 0 4cqw 2.6cqw rgba(159, 234, 255, .6); } }
+@keyframes legend-rise { to { background-position: 0 -40cqw, 11cqw -35cqw; } }
+@media (prefers-reduced-motion: reduce) {
+  .card-tier::before, .card-tier::after { display: none !important; }
+}
 .new-badge { position: absolute; top: -10px; left: 50%; z-index: 2; padding: 5px 10px; border-radius: 999px; background: #fff; color: var(--club-deep); font: 700 15px/1 var(--font-c); white-space: nowrap; transform: translateX(-50%); box-shadow: 0 0 0 2px var(--club), 0 2px 8px rgba(0, 0, 0, .35); }
 
 .card.back .card-body { padding: 0; background: repeating-linear-gradient(45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .07) 0 1px, transparent 1px 9px), var(--club-deep); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .24), 0 10px 22px -8px rgba(0, 0, 0, .7); }
