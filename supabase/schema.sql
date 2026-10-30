@@ -47,7 +47,8 @@ create table if not exists public.game_settings (
   id                    boolean primary key default true check (id),
   booster_size          int not null default 5 check (booster_size between 1 and 20),
   free_booster_cooldown interval not null default interval '1 day',
-  free_booster_max      int not null default 2 check (free_booster_max between 1 and 10)  -- boosters gratuits cumulables
+  free_booster_max      int not null default 2 check (free_booster_max between 1 and 10),  -- boosters gratuits cumulables
+  god_pack_odds         int not null default 0 check (god_pack_odds >= 0)  -- god pack : 1 booster sur N (0 = jamais)
 );
 
 create table if not exists public.rarities (
@@ -59,7 +60,8 @@ create table if not exists public.rarities (
   effect smallint not null default 1 check (effect between 1 and 17),  -- effet visuel, voir EFFECTS dans src/lib/lookup.tsx
   color  text check (color ~ '^#[0-9A-Fa-f]{6}$'),  -- couleur de l'effet (null = couleur par défaut de l'effet)
   gems   smallint check (gems between 0 and 10),   -- nombre de losanges (null = selon l'effet)
-  badge  text check (char_length(badge) between 1 and 12)  -- texte affiché à la place des losanges (★, SR…)
+  badge  text check (char_length(badge) between 1 and 12),  -- texte affiché à la place des losanges (★, SR…)
+  in_god_pack boolean not null default false       -- true = peut tomber dans un god pack
 );
 
 -- Séries / extensions : "Saison 2026-27", "Tournoi de Noël"...
@@ -155,8 +157,10 @@ create table if not exists public.booster_codes (
   uses_count int not null default 0,
   expires_at timestamptz,
   created_at timestamptz not null default now(),
+  god_pack   boolean not null default false,       -- true = god pack garanti
   -- un code « carte précise » donne cette carte et rien d'autre
-  constraint booster_codes_card_only check (card_id is null or (set_id is null and card_count is null))
+  constraint booster_codes_card_only check (card_id is null or (set_id is null and card_count is null)),
+  constraint booster_codes_god_pack_no_card check (not god_pack or card_id is null)
 );
 create unique index if not exists booster_codes_code_idx on public.booster_codes (upper(code));
 
@@ -173,7 +177,8 @@ create table if not exists public.booster_openings (
   user_id   uuid not null references public.profiles (id) on delete cascade,
   code_id   bigint references public.booster_codes (id) on delete set null,
   card_ids  bigint[] not null,
-  opened_at timestamptz not null default now()
+  opened_at timestamptz not null default now(),
+  god_pack  boolean not null default false         -- true = cartes tirées parmi les raretés in_god_pack
 );
 create index if not exists booster_openings_user_idx on public.booster_openings (user_id, opened_at desc);
 
@@ -212,6 +217,20 @@ begin
       check (card_id is null or (set_id is null and card_count is null));
   end if;
 end $$;
+-- God pack : les raretés Ultra rare, Légendaire et Secrète y sont éligibles au départ
+-- (seulement à la création de la colonne, pour garder ensuite les réglages de l'admin)
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'rarities' and column_name = 'in_god_pack') then
+    alter table public.rarities add column in_god_pack boolean not null default false;
+    update public.rarities set in_god_pack = true where code in ('ultra_rare', 'legendary', 'secret');
+  end if;
+end $$;
+alter table public.game_settings    add column if not exists god_pack_odds int not null default 0 check (god_pack_odds >= 0);
+alter table public.booster_codes    add column if not exists god_pack boolean not null default false;
+alter table public.booster_openings add column if not exists god_pack boolean not null default false;
+alter table public.booster_codes drop constraint if exists booster_codes_god_pack_no_card;
+alter table public.booster_codes add constraint booster_codes_god_pack_no_card check (not god_pack or card_id is null);
 
 -- Cartes déjà obtenues avant l'existence de card_discoveries (badge « Nouvelle »)
 insert into public.card_discoveries (user_id, card_id)
@@ -318,7 +337,9 @@ end $$;
 -- Tire une carte : une rareté selon les poids, puis une carte au hasard dans cette rareté.
 -- Une rareté sans carte disponible est ignorée (son poids se répartit sur les autres).
 -- p_set_id null = boosters standards (séries in_boosters), sinon uniquement cette série.
-create or replace function private.draw_card(p_set_id int)
+-- p_god_pack = tirage limité aux raretés in_god_pack (leurs poids restent les mêmes entre elles).
+drop function if exists private.draw_card(int); -- ancienne signature, sans p_god_pack
+create or replace function private.draw_card(p_set_id int, p_god_pack boolean default false)
 returns bigint
 language plpgsql volatile set search_path = ''
 as $$
@@ -329,6 +350,7 @@ begin
   select r.id into v_rarity
   from public.rarities r
   where r.weight > 0
+    and (not p_god_pack or r.in_god_pack)
     and exists (
       select 1
       from public.cards c
@@ -357,6 +379,25 @@ begin
 
   return v_card;
 end $$;
+
+-- Vrai si un god pack peut être tiré dans ce périmètre (même règle de série que draw_card) :
+-- au moins une carte disponible d'une rareté in_god_pack de poids non nul.
+create or replace function private.god_pack_possible(p_set_id int)
+returns boolean
+language sql stable set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.cards c
+    join public.card_sets s on s.id = c.set_id
+    join public.rarities r on r.id = c.rarity_id
+    where r.in_god_pack
+      and r.weight > 0
+      and c.is_released
+      and c.in_boosters
+      and (case when p_set_id is null then s.in_boosters else c.set_id = p_set_id end)
+  );
+$$;
 
 
 -- ---------------------------------------------------------------------
@@ -399,7 +440,9 @@ $$;
 -- Ouvre un booster gratuit (selon le délai des réglages) ou via un code.
 -- p_set_id : série choisie par le membre (une série in_boosters), null = toutes les séries in_boosters.
 -- Un code lié à une série ou à une carte précise l'emporte sur ce choix.
--- Renvoie [{card_id, name, rarity_id, image_path, is_new}, ...]
+-- God pack : garanti par un code god_pack, sinon 1 chance sur game_settings.god_pack_odds
+-- (jamais pour un code « carte précise ») ; toutes les cartes sont alors tirées parmi les raretés in_god_pack.
+-- Renvoie [{card_id, name, rarity_id, image_path, is_new, god_pack}, ...]
 drop function if exists public.open_booster(text); -- ancienne signature, sans p_set_id
 create or replace function public.open_booster(p_code text default null, p_set_id int default null)
 returns jsonb
@@ -416,6 +459,7 @@ declare
   v_ids      bigint[] := '{}';
   v_result   jsonb := '[]'::jsonb;
   v_clock    timestamptz;
+  v_god      boolean := false;
 begin
   if v_uid is null then
     raise exception 'Connexion requise';
@@ -476,13 +520,26 @@ begin
     raise exception 'La carte de ce code n''est pas encore disponible';
   end if;
 
+  -- God pack : sans carte éligible dans la série, le hasard retombe sur un booster normal,
+  -- un code god pack échoue (l'exception annule tout, le code n'est pas consommé)
+  if v_code.card_id is null then
+    v_god := coalesce(v_code.god_pack, false)
+             or (v_settings.god_pack_odds > 0 and random() < 1.0 / v_settings.god_pack_odds);
+    if v_god and not private.god_pack_possible(coalesce(v_code.set_id, p_set_id)) then
+      if coalesce(v_code.god_pack, false) then
+        raise exception 'Aucune carte disponible pour un god pack dans cette série';
+      end if;
+      v_god := false;
+    end if;
+  end if;
+
   -- Un code peut donner une carte précise, ou moins (ou plus) de cartes qu'un booster normal
   for i in 1 .. case when v_code.card_id is not null then 1
                      else coalesce(v_code.card_count, v_settings.booster_size) end loop
     if v_code.card_id is not null then
       v_card_id := v_code.card_id;
     else
-      v_card_id := private.draw_card(coalesce(v_code.set_id, p_set_id));
+      v_card_id := private.draw_card(coalesce(v_code.set_id, p_set_id), v_god);
     end if;
     v_is_new  := private.add_cards(v_uid, v_card_id, 1);
     select * into v_card from public.cards where id = v_card_id;
@@ -492,12 +549,13 @@ begin
       'name',       v_card.name,
       'rarity_id',  v_card.rarity_id,
       'image_path', v_card.image_path,
-      'is_new',     v_is_new
+      'is_new',     v_is_new,
+      'god_pack',   v_god
     );
   end loop;
 
-  insert into public.booster_openings (user_id, code_id, card_ids)
-  values (v_uid, v_code.id, v_ids);
+  insert into public.booster_openings (user_id, code_id, card_ids, god_pack)
+  values (v_uid, v_code.id, v_ids, v_god);
 
   return v_result;
 end $$;
@@ -1309,13 +1367,13 @@ create policy "Membres : lire les sous-titres" on public.card_subtitles
 
 insert into public.game_settings default values on conflict (id) do nothing;
 
-insert into public.rarities (id, code, label, weight, is_secret, effect) values
-  (1, 'common',     'Commune',     60,   false, 1),
-  (2, 'uncommon',   'Peu commune', 25,   false, 2),
-  (3, 'rare',       'Rare',        10,   false, 3),
-  (4, 'ultra_rare', 'Ultra rare',   4,   false, 4),
-  (5, 'legendary',  'Légendaire',   1,   false, 5),
-  (6, 'secret',     'Secrète',      0.5, true,  6)
+insert into public.rarities (id, code, label, weight, is_secret, effect, in_god_pack) values
+  (1, 'common',     'Commune',     60,   false, 1, false),
+  (2, 'uncommon',   'Peu commune', 25,   false, 2, false),
+  (3, 'rare',       'Rare',        10,   false, 3, false),
+  (4, 'ultra_rare', 'Ultra rare',   4,   false, 4, true),
+  (5, 'legendary',  'Légendaire',   1,   false, 5, true),
+  (6, 'secret',     'Secrète',      0.5, true,  6, true)
 on conflict (id) do nothing;
 
 -- Séries et cartes de démo : seulement sur un projet neuf (aucune série encore)
