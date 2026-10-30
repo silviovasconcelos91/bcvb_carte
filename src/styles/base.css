@@ -624,15 +624,46 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .pick-name { font-weight: 600; }
 .pick-meta { color: var(--muted); font-size: 14px; }
 .composer-to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 16px; }
-.composer-sets { margin-bottom: 14px; }
 .seg-n { display: inline-block; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px; border-radius: 10px; background: var(--club); color: #fff; font: 700 12px/20px var(--font); text-align: center; vertical-align: 1px; }
-.composer-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
-.composer-cols .h3 { margin: 0 0 8px; }
-.pick-cards { max-height: 46vh; margin: 0; padding: 0; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; list-style: none; }
 .pick-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-top: 1px solid var(--line); }
 .pick-row:first-child { border-top: 0; }
 .pick-row.is-on { background: color-mix(in srgb, var(--club) 14%, transparent); }
 .pick-empty { margin: 0; padding: 14px; border: 1px dashed var(--line); border-radius: 12px; }
+.link-btn { appearance: none; padding: 0; border: 0; background: none; color: var(--club); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+/* Fenêtre d'échange : côté, recherche, filtres, grille de cartes et récap */
+.composer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.composer-search { flex: 1 1 200px; width: auto; min-height: 40px; }
+.pick-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
+.fchip { appearance: none; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text); font: 600 14px/1 var(--font); cursor: pointer; }
+.fchip[aria-pressed="true"] { border-color: var(--club); background: var(--club); color: #fff; }
+.fsep { width: 1px; height: 20px; margin: 0 4px; background: var(--line); }
+.pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 18px 12px; margin: 0; padding: 8px 4px 12px; list-style: none; }
+.pick-wrap { position: relative; }
+.pick-cap { margin: 14px 0 0; color: var(--accent); font: 600 13px/1.2 var(--font); text-align: center; }
+.pick-cap-name { display: block; margin-bottom: 2px; color: var(--text); }
+.pick-card { appearance: none; display: block; width: 100%; padding: 0; border: 0; border-radius: 9px; background: none; cursor: pointer; transition: transform .12s ease-out; }
+.pick-card:active { transform: scale(.97); }
+.pick-tile:not(.is-on) .pick-card { opacity: .85; }
+.pick-tile.is-on .pick-card { box-shadow: 0 0 0 3px var(--club); }
+.pick-tile.is-last .pick-card { box-shadow: 0 0 0 3px var(--danger); }
+.pick-tile .own { position: absolute; top: -7px; right: -7px; z-index: 3; min-width: 30px; height: 24px; padding: 0 7px; border-radius: 12px; background: #13213C; color: #fff; font: 700 14px/24px var(--font-c); text-align: center; box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.pick-tile .own.last { background: var(--danger); font-size: 12px; letter-spacing: .03em; text-transform: uppercase; }
+.pick-check { position: absolute; bottom: -8px; left: 50%; z-index: 3; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--club); color: #fff; font-weight: 700; transform: translateX(-50%); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.pick-tile.is-last .pick-check { background: var(--danger); }
+.pick-step { position: absolute; bottom: -10px; left: 50%; z-index: 3; padding: 2px; border-radius: 10px; background: var(--surface); transform: translateX(-50%); box-shadow: 0 2px 8px rgba(19, 33, 60, .25); }
+.pick-step .step { width: 30px; height: 30px; font-size: 18px; }
+.composer-recap { display: grid; gap: 8px; width: 100%; }
+.rc-sides { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; gap: 10px; }
+.rc-side .swap-label { display: block; margin-bottom: 4px; font-size: 14px; }
+.rc-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: 76px; overflow-y: auto; }
+.rc-swap { align-self: center; color: var(--muted); font-size: 18px; }
+.rc-chip { appearance: none; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 2px 8px 2px 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: 600 13px/1.2 var(--font); cursor: pointer; }
+.rc-chip .chip-art { width: 20px; height: 27px; border-radius: 3px; }
+.rc-chip > span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rc-chip.warn { border-color: var(--danger); color: var(--danger); }
+.recap-none { color: var(--muted); font-size: 14px; }
+.rc-warn { margin: 0; color: var(--danger); font-size: 14px; font-weight: 600; }
+.rc-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
 .tag { margin-left: 4px; padding: 3px 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font: 600 12px/1 var(--font); vertical-align: 1px; }
 .tag.want { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 .stepper { display: inline-flex; flex: none; align-items: center; gap: 4px; }
@@ -830,14 +861,17 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
   .login-panel { max-width: none; }
 }
 @media (max-width: 760px) {
-  .composer-cols { grid-template-columns: minmax(0, 1fr); }
-  .pick-cards { max-height: 34vh; }
 }
 @media (max-width: 640px) {
   .modal-back { place-items: end stretch; padding: calc(10px + env(safe-area-inset-top, 0px)) 0 0; }
   .modal, .modal.wide { width: 100%; max-height: calc(100dvh - 10px - env(safe-area-inset-top, 0px)); padding-bottom: env(safe-area-inset-bottom, 0px); border-radius: 18px 18px 0 0; }
   .detail { grid-template-columns: minmax(0, 1fr); gap: 18px; }
   .detail-card { max-width: 250px; margin: 0 auto; }
+  .pick-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 16px 10px; }
+  .pick-filters { flex-wrap: nowrap; margin: 0 -22px 12px; padding: 2px 22px; overflow-x: auto; scrollbar-width: none; }
+  .fchip { flex: none; }
+  .rc-list { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .rc-chip { flex: none; }
   .trade-swap { grid-template-columns: minmax(0, 1fr); }
   .swap-icon { justify-self: center; transform: rotate(90deg); }
   .trade-actions .btn { flex: 1; }

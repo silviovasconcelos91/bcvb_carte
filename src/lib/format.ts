@@ -87,3 +87,5 @@ export function randomChars(alphabet: string, n: number): string {
   }
   return out;
 }
+// « Diallo », « Diallo et Petit », « Diallo, Petit et Roux »
+export const listFr = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}` : names[0] ?? '');

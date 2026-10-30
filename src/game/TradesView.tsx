@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { partialCard } from '../api/game';
 import type { Card, Trade, TradeItem } from '../lib/types';
-import { errMsg, relTime } from '../lib/format';
+import { errMsg, listFr, relTime } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
 import { IconSwap, MiniArt } from '../components/visuals';
 import { useToast } from '../components/Toasts';
@@ -39,6 +39,8 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
   const iGive = t.trade_items.filter(i => (i.side === 'offer') === meProposer);
   const iGet = t.trade_items.filter(i => (i.side === 'offer') !== meProposer);
   const short = kind === 'received' && iGive.some(i => qtyOf(d, uid, i.card_id) < i.quantity);
+  // Cartes en attente dont on donnerait le dernier exemplaire
+  const lastOnes = kind === 'done' ? [] : iGive.filter(i => qtyOf(d, uid, i.card_id) === i.quantity).map(i => d.cardById.get(i.card_id)).filter((c): c is Card => !!c);
   const who = <strong>{nameOf(d, other)}</strong>;
   const pairs = (list: TradeItem[]) => list.map(i => [i.card_id, i.quantity] as [number, number]);
   // Contre-proposition : on part de l'échange reçu, modifiable avant envoi
@@ -65,21 +67,28 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
     }
   }
 
-  const chips = (list: TradeItem[], check: boolean) => list.length ? (
+  const chips = (list: TradeItem[], check: boolean, mineSide = false) => list.length ? (
     <ul className="chips">
       {list.map(i => {
         const known = d.cardById.get(i.card_id);
         const c = known ?? mystery(i.card_id);
-        const warn = check && qtyOf(d, uid, i.card_id) < i.quantity;
+        const have = qtyOf(d, uid, i.card_id);
+        const warn = check && have < i.quantity;
+        // Côté « Tu donnes » d'un échange en attente : exemplaires avant → après
+        const left = mineSide && !warn ? have - i.quantity : null;
         // Série de la carte, utile dès qu'il en existe plusieurs (inconnue pour une carte mystère)
         const set = d.sets.length > 1 ? L.setById.get(c.set_id)?.name : undefined;
+        const meta = warn ? "Tu ne l'as plus"
+          : left === 0 ? (have === 1 ? 'ta dernière → 0' : `tu en as ${have} → 0`)
+          : left !== null && left > 0 ? `tu en as ${have} → ${left}`
+          : set ? `${set} · ${rarText(L, c)}` : rarText(L, c);
         const inner = (
           <>
             <span className="chip-art"><MiniArt card={c} /></span>
-            <span className="chip-text"><span className="chip-name">{known ? cardName(c) : c.name}{i.quantity > 1 ? ` ×${i.quantity}` : ''}</span><span className="chip-meta">{warn ? "Tu ne l'as plus" : set ? `${set} · ${rarText(L, c)}` : rarText(L, c)}</span></span>
+            <span className="chip-text"><span className="chip-name">{known ? cardName(c) : c.name}{i.quantity > 1 ? ` ×${i.quantity}` : ''}</span><span className="chip-meta">{meta}</span></span>
           </>
         );
-        const cls = `chip ${rClass(L, c)}${warn ? ' warn' : ''}`;
+        const cls = `chip ${rClass(L, c)}${warn || left === 0 ? ' warn' : ''}`;
         return (
           <li key={`${i.side}-${i.card_id}`}>
             {known ? <button className={cls} onClick={() => openCard(c.id)}>{inner}</button> : <span className={`${cls} mystery`}>{inner}</span>}
@@ -100,9 +109,10 @@ function TradeRow({ t, kind }: { t: Trade; kind: 'received' | 'sent' | 'done' })
       <div className="trade-swap">
         <div><p className="swap-label">Tu reçois</p>{chips(iGet, false)}</div>
         <span className="swap-icon"><IconSwap /></span>
-        <div><p className="swap-label">Tu donnes</p>{chips(iGive, kind === 'received')}</div>
+        <div><p className="swap-label">Tu donnes</p>{chips(iGive, kind === 'received', kind !== 'done')}</div>
       </div>
       {t.message && <p className="trade-msg">{t.message}</p>}
+      {lastOnes.length > 0 && <p className="trade-warn">⚠ Tu donnerais {lastOnes.length > 1 ? 'tes derniers exemplaires de' : 'ton dernier exemplaire de'} {listFr(lastOnes.map(cardName))}.</p>}
       {short && <p className="trade-warn">Tu n'as plus toutes les cartes demandées : cet échange échouera si tu l'acceptes.</p>}
       {kind === 'received' && (
         <div className="trade-actions">
