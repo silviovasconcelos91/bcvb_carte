@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import type { Card, Proposal } from '../lib/types';
 import { pad2, plural } from '../lib/format';
 import { LookupContext, isSecret, rClass, rarityLabel } from '../lib/lookup';
-import { CardView, MiniArt } from '../components/visuals';
+import { Avatar, CardView, MiniArt } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { CardFields, PhotoField, draftFields, draftFrom, useCardPhoto, type CardDraft } from '../components/CardForm';
 import { useConfirm } from '../components/Confirm';
 import { useRunner, useToast } from '../components/Toasts';
 import type { CardInput } from '../api/admin';
-import { useAdmin } from './context';
+import { nameOf, useAdmin } from './context';
 
 export function CardsAdmin() {
   const { d } = useAdmin();
@@ -16,6 +16,7 @@ export function CardsAdmin() {
   const [rar, setRar] = useState('all');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<number | 'new' | null>(null);
+  const [ownersOf, setOwnersOf] = useState<number | null>(null);
   const needle = q.trim().toLowerCase();
   const list = d.cards.filter(c => (set === 'all' || String(c.set_id) === set) && (rar === 'all' || String(c.rarity_id) === rar)
     && (!needle || `${c.name} ${c.subtitle ?? ''}`.toLowerCase().includes(needle)));
@@ -47,7 +48,7 @@ export function CardsAdmin() {
                   {c.is_released ? <span className="pill ok">Publiée</span> : <span className="pill warn">En préparation</span>}
                   {c.is_released && c.in_boosters === false && <span className="pill">Hors boosters</span>}
                 </span></td>
-                <td className="num">{owners ? plural(owners, 'membre', 'membres') : '–'}</td>
+                <td className="num">{owners ? <button className="linkbtn" onClick={() => setOwnersOf(c.id)}>{plural(owners, 'membre', 'membres')}</button> : '–'}</td>
                 <td className="actions"><button className="btn small" onClick={() => setEditing(c.id)}>Modifier</button></td>
               </tr>
             );
@@ -55,7 +56,31 @@ export function CardsAdmin() {
         </tbody>
       </table></div>
       {editing != null && <CardEditor id={editing === 'new' ? null : editing} defaultSet={set === 'all' ? null : +set} onClose={() => setEditing(null)} />}
+      {ownersOf != null && <OwnersModal id={ownersOf} onClose={() => setOwnersOf(null)} />}
     </>
+  );
+}
+
+// Membres qui possèdent la carte, du plus grand nombre d'exemplaires au plus petit
+function OwnersModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const { d } = useAdmin();
+  const card = d.cardById.get(id);
+  const owners = [...d.owned].map(([uid, cards]) => [uid, cards.get(id) ?? 0] as const).filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || nameOf(d, a[0]).localeCompare(nameOf(d, b[0])));
+  const total = owners.reduce((a, [, n]) => a + n, 0);
+  return (
+    <Modal title={`Qui a « ${card?.name ?? 'Carte'} » ?`} onClose={onClose}>
+      <p className="muted">{plural(owners.length, 'membre', 'membres')}, {plural(total, 'exemplaire', 'exemplaires')} en tout.</p>
+      <ul className="owners">
+        {owners.map(([uid, n]) => (
+          <li key={uid}>
+            <Avatar name={nameOf(d, uid)} small />
+            <span className="owner-name">{nameOf(d, uid)}</span>
+            <span className="owner-q">{plural(n, 'exemplaire', 'exemplaires')}</span>
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
 
