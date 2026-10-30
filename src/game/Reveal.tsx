@@ -16,6 +16,8 @@ const FX_GLASS = 16, FX_DARK = 17;
 
 // Ouverture du paquet : il tombe, tremble de plus en plus fort, puis se déchire dans un flash
 const PACK_STEPS: [PackStep, number][] = [['drop', 550], ['charge', 1050], ['torn', 800]];
+// God pack : la charge dure plus longtemps, le temps que le paquet vire à l'or
+const GOD_PACK_STEPS: [PackStep, number][] = [['drop', 550], ['charge', 1800], ['torn', 800]];
 // Suspense avant de retourner une carte très rare (la carte tremble et s'illumine)
 const SUSPENSE: Record<number, number> = { 5: 500, 6: 1100 };
 
@@ -122,6 +124,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
   });
   const n = items.length;
   const fresh = drawn.filter(x => x.is_new).length;
+  const god = drawn.some(x => x.god_pack);
   // Pochette de la série tirée ; cartes de plusieurs séries : booster de toutes les séries
   const drawnSets = new Set(items.map(x => x.card.set_id));
   const pack = packOf(d, drawnSets.size === 1 ? [...drawnSets][0] || null : null);
@@ -136,7 +139,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
     let alive = true;
     (async () => {
       if (!reduceMotion()) {
-        for (const [s, ms] of PACK_STEPS) {
+        for (const [s, ms] of god ? GOD_PACK_STEPS : PACK_STEPS) {
           if (!alive) return;
           setStep(s);
           await sleep(ms);
@@ -205,7 +208,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
 
   return createPortal(
     <div className="reveal" ref={rootRef} role="dialog" aria-modal="true" aria-label="Ouverture du booster">
-      {phase === 'pack' && step === 'torn' && <div className={`reveal-flash pack-flash fx-r${best} ${bestCls}`} aria-hidden="true" />}
+      {phase === 'pack' && step === 'torn' && <div className={`reveal-flash pack-flash fx-r${best} ${bestCls}${god ? ' god' : ''}`} aria-hidden="true" />}
       {fx && (
         <div key={fx.key} className={`reveal-fx fx-r${fx.r} ${rarClass(L, fx.id)}`} style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true">
           {fx.r >= 5 && <span className="fx-rays" />}
@@ -224,7 +227,7 @@ export function Reveal({ drawn, onClose }: { drawn: DrawnCard[]; onClose: (goCol
       {fx?.e === FX_DARK && <div key={fx.key} className="fx-shade" style={{ '--fx-x': `${fx.x}px`, '--fx-y': `${fx.y}px` } as CSSProperties} aria-hidden="true" />}
       <div className={`reveal-stage${fx && fx.r >= 5 ? ` quake-r${fx.r}` : fx?.e === FX_GLASS ? ' quake-r5' : ''}`}>
         {phase === 'pack' && (
-          <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0} ${bestCls}`}>
+          <div className={`reveal-pack ${step} best-r${best >= 4 ? best : 0} ${bestCls}${god ? ' god' : ''}`}>
             <span className="pack-rays" aria-hidden="true" />
             <span className="pack-aura" aria-hidden="true" />
             <Pack {...pack} />

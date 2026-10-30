@@ -21,8 +21,10 @@ const darkCards = players.slice(2, 4).map(c => ({ ...c, rarity_id: DARK.id }));
 const special = new Map([...glassCards, ...darkCards].map(c => [c.id, c]));
 const catalog = cards.map(c => special.get(c.id) ?? c);
 const commons = catalog.filter(c => (c.rarity_id ?? 1) <= 3);
+const topRares = catalog.filter(c => (c.rarity_id ?? 1) >= 4 && (c.rarity_id ?? 1) <= 6);
 
-const PACKS: { label: string; desc: string; ids: () => number[] }[] = [
+const PACKS: { label: string; desc: string; ids: () => number[]; god?: boolean }[] = [
+  { label: 'God pack', desc: "Cinq cartes ultra rares ou mieux, avec l'ouverture dorée", ids: () => Array.from({ length: 5 }, () => pick(topRares, 1)[0]), god: true },
   { label: 'Booster complet', desc: 'Trois cartes ordinaires, puis une blessure et un dark side', ids: () => [...pick(commons, 3), glassCards[0].id, darkCards[0].id] },
   { label: 'Blessures', desc: 'Deux cartes blessure', ids: () => glassCards.map(c => c.id) },
   { label: 'Dark side', desc: 'Deux cartes dark side', ids: () => darkCards.map(c => c.id) },
@@ -47,9 +49,9 @@ export default function RevealDemo() {
     };
   }, []);
 
-  const open = (ids: number[]) => setDrawn(ids.map(id => {
+  const open = (ids: number[], god = false) => setDrawn(ids.map(id => {
     const c = ctx.d.cardById.get(id)!;
-    return { card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: true };
+    return { card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: true, god_pack: god };
   }));
 
   return (
@@ -61,7 +63,7 @@ export default function RevealDemo() {
           <p className="muted">Ouverture simulée : rien n'est enregistré, tu peux recommencer autant que tu veux.</p>
           <div className="demo-packs">
             {PACKS.map(p => (
-              <button key={p.label} className="btn primary demo-pack" onClick={() => open(p.ids())}>
+              <button key={p.label} className="btn primary demo-pack" onClick={() => open(p.ids(), p.god)}>
                 <strong>{p.label}</strong><span>{p.desc}</span>
               </button>
             ))}
