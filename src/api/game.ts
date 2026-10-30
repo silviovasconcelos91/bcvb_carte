@@ -2,7 +2,7 @@ import { CONFIG, DEMO } from '../config';
 import type { BoosterCode, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Photo, Profile, Proposal, ProposalInput, Rarity, Settings, Subtitle, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
-import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, readStore, writeStore } from '../lib/demoData';
+import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, demoGodPackPossible, readStore, writeStore } from '../lib/demoData';
 import { fmtDate, freeBoosters, intervalMs, slug } from '../lib/format';
 
 export const PROPOSAL_MAX = 5;
@@ -137,9 +137,10 @@ function createSupabaseGameApi(): GameApi {
 }
 
 /* -------------------------------- Démo -------------------------------- */
-type DemoCode = Pick<BoosterCode, 'id' | 'code' | 'set_id' | 'card_count' | 'card_id' | 'max_uses' | 'uses_count' | 'expires_at'>;
-// Codes de la démo : booster complet, booster d'une série, une carte d'une série, une carte précise
+type DemoCode = Pick<BoosterCode, 'id' | 'code' | 'set_id' | 'card_count' | 'card_id' | 'max_uses' | 'uses_count' | 'expires_at' | 'god_pack'>;
+// Codes de la démo : booster complet, booster d'une série, une carte d'une série, une carte précise, god pack
 const DEMO_CODES: DemoCode[] = [
+  { id: 5, code: 'GODPACK', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null, god_pack: true },
   { id: 1, code: 'MATCH-14NOV', set_id: null, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
   { id: 2, code: 'NOEL26', set_id: 2, card_count: null, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
   { id: 3, code: 'NOEL-1', set_id: 2, card_count: 1, card_id: null, max_uses: null, uses_count: 0, expires_at: null },
@@ -184,11 +185,11 @@ function createDemoGameApi(): GameApi {
     if (!o[cid]) delete o[cid];
   };
   const profile = (id: string | null) => db.profiles.find(p => p.id === id);
-  const draw = (setId: number | null) => demoDraw(db.cards, db.sets, db.rarities, setId);
+  const draw = (setId: number | null, godPack = false) => demoDraw(db.cards, db.sets, db.rarities, setId, godPack);
 
   function seed() {
     db = {
-      version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
+      version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2, god_pack_odds: 0 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
       owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1, proposals: [],
@@ -217,6 +218,7 @@ function createDemoGameApi(): GameApi {
     db.proposals ??= []; // démo enregistrée avant les propositions
     for (const p of db.profiles) p.status ??= 'active'; // démo enregistrée avant les statuts
     for (const c of DEMO_CODES) if (!db.codes.some(x => x.code === c.code)) db.codes.push(clone(c)); // codes ajoutés depuis
+    for (const r of db.rarities) r.in_god_pack ??= DEMO_RARITIES.find(x => x.code === r.code)?.in_god_pack ?? false; // démo enregistrée avant les god packs
   } else seed();
 
   const api: GameApi = {
@@ -264,11 +266,22 @@ function createDemoGameApi(): GameApi {
       }
       // Comme open_booster : carte précise (publiée, sinon échec sans consommer le code), nombre choisi ou booster complet
       let drawn: Card[];
+      let god = false;
       if (row?.card_id != null) {
         const card = db.cards.find(c => c.id === row!.card_id);
         if (!card || !card.is_released) return fail("La carte de ce code n'est pas encore disponible");
         drawn = [card];
-      } else drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(row?.set_id ?? setId ?? null));
+      } else {
+        // God pack, comme open_booster : garanti par le code ou 1 chance sur N, sinon booster normal faute de carte éligible
+        const scope = row?.set_id ?? setId ?? null;
+        const odds = db.settings.god_pack_odds ?? 0;
+        god = !!row?.god_pack || (odds > 0 && Math.random() < 1 / odds);
+        if (god && !demoGodPackPossible(db.cards, db.sets, db.rarities, scope)) {
+          if (row?.god_pack) fail('Aucune carte disponible pour un god pack dans cette série');
+          god = false;
+        }
+        drawn = Array.from({ length: row?.card_count ?? db.settings.booster_size }, () => draw(scope, god));
+      }
       if (row) { db.redemptions.push({ code_id: row.id, user_id: me }); row.uses_count++; } else {
         // Avance l'horloge de recharge d'un délai (voir open_booster)
         const cd = intervalMs(db.settings.free_booster_cooldown);
@@ -276,7 +289,7 @@ function createDemoGameApi(): GameApi {
         const clock = Math.max(p.last_free_booster_at ? Date.parse(p.last_free_booster_at) : -Infinity, Date.now() - max * cd);
         p.last_free_booster_at = new Date(clock + cd).toISOString();
       }
-      const result = drawn.map(c => ({ card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: add(me, c.id, 1) }));
+      const result = drawn.map(c => ({ card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: add(me, c.id, 1), god_pack: god }));
       save();
       return clone(result);
     },

@@ -10,6 +10,7 @@ export interface Rarity {
   color: string | null; // #rrggbb, sinon couleur par défaut de l'effet
   gems?: number | null; // nombre de losanges (0 à 10), sinon selon l'effet ; absent sur une base pas encore mise à jour
   badge?: string | null; // texte affiché à la place des losanges
+  in_god_pack?: boolean; // peut tomber dans un god pack ; absent sur une base pas encore mise à jour
 }
 
 // Sous-titre proposé dans l'éditeur de cartes (console uniquement)
@@ -112,6 +113,7 @@ export interface Settings {
   booster_size: number;
   free_booster_cooldown: string;
   free_booster_max?: number; // boosters gratuits cumulables (absent avant le patch : 1)
+  god_pack_odds?: number; // god pack : 1 booster sur N, 0 = jamais (absent avant le patch : 0)
 }
 
 export interface DrawnCard {
@@ -120,6 +122,7 @@ export interface DrawnCard {
   rarity_id: number;
   image_path: string | null;
   is_new: boolean;
+  god_pack?: boolean; // booster tiré parmi les raretés in_god_pack (même valeur pour toutes ses cartes)
 }
 
 export interface BoosterCode {
@@ -129,6 +132,7 @@ export interface BoosterCode {
   set_id: number | null; // limite le tirage à une série (null : séries actives) ; toujours null avec card_id
   card_count: number | null; // nombre de cartes tirées, de 1 à 20 (null : booster complet)
   card_id: number | null; // carte précise offerte ; set_id et card_count sont alors null
+  god_pack?: boolean; // god pack garanti (jamais avec card_id)
   max_uses: number | null;
   uses_count: number;
   expires_at: string | null;
@@ -141,6 +145,7 @@ export interface Opening {
   code_id: number | null;
   card_ids: number[];
   opened_at: string;
+  god_pack?: boolean;
 }
 
 export interface CardRef {

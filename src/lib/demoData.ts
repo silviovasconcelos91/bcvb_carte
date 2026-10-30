@@ -5,9 +5,9 @@ export const DEMO_RARITIES: Rarity[] = [
   { id: 1, code: 'common', label: 'Commune', weight: 60, is_secret: false, effect: 1, color: null },
   { id: 2, code: 'uncommon', label: 'Peu commune', weight: 25, is_secret: false, effect: 2, color: null },
   { id: 3, code: 'rare', label: 'Rare', weight: 10, is_secret: false, effect: 3, color: null },
-  { id: 4, code: 'ultra_rare', label: 'Ultra rare', weight: 4, is_secret: false, effect: 4, color: null },
-  { id: 5, code: 'legendary', label: 'Légendaire', weight: 1, is_secret: false, effect: 5, color: null },
-  { id: 6, code: 'secret', label: 'Secrète', weight: 0.5, is_secret: true, effect: 6, color: null },
+  { id: 4, code: 'ultra_rare', label: 'Ultra rare', weight: 4, is_secret: false, effect: 4, color: null, in_god_pack: true },
+  { id: 5, code: 'legendary', label: 'Légendaire', weight: 1, is_secret: false, effect: 5, color: null, in_god_pack: true },
+  { id: 6, code: 'secret', label: 'Secrète', weight: 0.5, is_secret: true, effect: 6, color: null, in_god_pack: true },
 ];
 
 // Sous-titres de départ de la console (même liste que supabase/schema.sql)
@@ -59,10 +59,21 @@ export const DEMO_MEMBERS = [
 export const DEMO_MESSAGES = ['Il me manque celle-là pour finir la série !', 'Je te donne mon double ?', null, 'Échange rapide avant le match de samedi ?'];
 
 // Tirage identique à private.draw_card : rareté pondérée, puis carte au hasard dans cette rareté
-export function demoDraw(cards: Card[], sets: CardSet[], rarities: Rarity[], setId: number | null): Card {
+// Cartes que peut donner un booster : publiées, dans les boosters, de la série demandée (null : séries in_boosters)
+function boosterPool(cards: Card[], sets: CardSet[], setId: number | null) {
   const setById = new Map(sets.map(s => [s.id, s]));
-  const pool = cards.filter(c => c.is_released && c.in_boosters !== false && (setId == null ? setById.get(c.set_id)?.in_boosters : c.set_id === setId));
-  const rars = rarities.filter(r => r.weight > 0 && pool.some(c => c.rarity_id === r.id));
+  return cards.filter(c => c.is_released && c.in_boosters !== false && (setId == null ? setById.get(c.set_id)?.in_boosters : c.set_id === setId));
+}
+
+// Comme private.god_pack_possible : une carte disponible d'une rareté in_god_pack de poids non nul
+export function demoGodPackPossible(cards: Card[], sets: CardSet[], rarities: Rarity[], setId: number | null) {
+  const pool = boosterPool(cards, sets, setId);
+  return rarities.some(r => r.in_god_pack && r.weight > 0 && pool.some(c => c.rarity_id === r.id));
+}
+
+export function demoDraw(cards: Card[], sets: CardSet[], rarities: Rarity[], setId: number | null, godPack = false): Card {
+  const pool = boosterPool(cards, sets, setId);
+  const rars = rarities.filter(r => r.weight > 0 && (!godPack || r.in_god_pack) && pool.some(c => c.rarity_id === r.id));
   if (!rars.length) throw new Error('Aucune carte disponible pour ce booster');
   let x = Math.random() * rars.reduce((s, r) => s + r.weight, 0);
   let pick = rars[rars.length - 1];
