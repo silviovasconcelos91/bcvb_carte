@@ -65,7 +65,7 @@ export function Dashboard() {
                 return (
                   <li key={o.id}>
                     <Avatar name={nameOf(d, o.user_id)} small />
-                    <span className="act-main"><strong>{nameOf(d, o.user_id)}</strong><span className="muted">{relTime(o.opened_at)}{code ? `, code ${code.code}` : ''}</span></span>
+                    <span className="act-main"><strong>{nameOf(d, o.user_id)}</strong><span className="muted">{relTime(o.opened_at)}{code ? `, code ${code.code}` : ''}{o.god_pack ? ', god pack' : ''}</span></span>
                     <span className="act-cards">
                       {o.card_ids.map((id, i) => { const c = d.cardById.get(id); return c ? <i key={i} className={`dot ${rClass(d.lookup, c)}`} title={`${c.name}, ${rarityLabel(d.lookup, c.rarity_id)}`} /> : null; })}
                     </span>

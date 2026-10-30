@@ -62,7 +62,7 @@ export interface AdminApi {
   reset?(): Promise<void>;
 }
 
-export type RarityInput = Pick<Rarity, 'id' | 'code' | 'label' | 'weight' | 'is_secret' | 'effect' | 'color' | 'gems' | 'badge'>;
+export type RarityInput = Pick<Rarity, 'id' | 'code' | 'label' | 'weight' | 'is_secret' | 'effect' | 'color' | 'gems' | 'badge' | 'in_god_pack'>;
 
 // Messages d'erreur de la base traduits en français
 function friendly(msg: string): string {
@@ -72,6 +72,8 @@ function friendly(msg: string): string {
   if (/card_sets_name_key/.test(msg)) return 'Une série porte déjà ce nom.';
   if (/card_subtitles_label_key/.test(msg)) return 'Ce sous-titre existe déjà.';
   if (/card_subtitles/.test(msg) && /schema cache|does not exist/.test(msg)) return 'Base pas à jour : exécute supabase/patches/2026-10-19-sous-titres.sql.';
+  if (/'(in_god_pack|god_pack_odds|god_pack)' column|column [a-z_.]*god_pack[a-z_]* does not exist/.test(msg)) return 'Base pas à jour : exécute supabase/patches/2026-10-30-god-pack.sql.';
+  if (/booster_codes_god_pack_no_card/.test(msg)) return 'Un code qui donne une carte précise ne peut pas être un god pack.';
   if (/booster_codes_code_idx/.test(msg)) return 'Ce code existe déjà.';
   if (/signup_settings_code_check/.test(msg)) return "Le code d'inscription doit faire entre 4 et 40 caractères.";
   if (/delete on table "card_sets"/.test(msg)) return 'Cette série contient encore des cartes.';
@@ -119,7 +121,7 @@ function createSupabaseAdminApi(): AdminApi {
         fetchAll<UserCard>(() => sb.from('user_cards').select('user_id, card_id, quantity').order('user_id').order('card_id')),
         fetchAll<BoosterCode>(() => sb.from('booster_codes').select('*').order('created_at', { ascending: false })),
         sb.from('admins').select('user_id').then(r => ok<{ user_id: string }[]>(r)),
-        sb.from('booster_openings').select('id, user_id, code_id, card_ids, opened_at').order('opened_at', { ascending: false }).limit(12).then(r => ok<Opening[]>(r)),
+        sb.from('booster_openings').select('id, user_id, code_id, card_ids, opened_at, god_pack').order('opened_at', { ascending: false }).limit(12).then(r => ok<Opening[]>(r)),
         fetchAll<Trade>(() => sb.from('trades').select('*, trade_items(side, card_id, quantity)').order('created_at', { ascending: false }).order('id')),
         sb.from('signup_settings').select('code').single().then(r => ok<{ code: string | null }>(r)),
         openings().then(count),
@@ -237,7 +239,7 @@ function createDemoAdminApi(): AdminApi {
   const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
   function seed() {
     db = {
-      version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2 },
+      version: VERSION, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2, god_pack_odds: 0 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       subtitles: [...new Set([...DEMO_SUBTITLES, ...DEMO_CARDS.map(c => c.subtitle).filter((s): s is string => !!s)])].map((label, i) => ({ id: i + 1, label })),
       profiles: [
@@ -295,7 +297,10 @@ function createDemoAdminApi(): AdminApi {
     save();
   }
   const stored = readStore<DemoDb>(KEY);
-  if (stored?.version === VERSION) db = stored; else seed();
+  if (stored?.version === VERSION) {
+    db = stored;
+    for (const r of db.rarities) r.in_god_pack ??= DEMO_RARITIES.find(x => x.code === r.code)?.in_god_pack ?? false; // démo enregistrée avant les god packs
+  } else seed();
   const used = (cid: number) => Object.values(db.owned).some(o => o[cid]);
 
   return {
@@ -392,6 +397,7 @@ function createDemoAdminApi(): AdminApi {
       // Mêmes contraintes que la table booster_codes
       if (code.card_count != null && (!Number.isInteger(code.card_count) || code.card_count < 1 || code.card_count > 20)) fail('Le nombre de cartes doit être compris entre 1 et 20.');
       if (code.card_id != null && (code.set_id != null || code.card_count != null)) fail("Un code qui donne une carte précise n'a ni série ni nombre de cartes.");
+      if (code.card_id != null && code.god_pack) fail('Un code qui donne une carte précise ne peut pas être un god pack.');
       if (code.code && db.codes.some(c => c.code.toUpperCase() === code.code!.toUpperCase() && c.id !== code.id)) fail('Ce code existe déjà.');
       const existing = code.id ? db.codes.find(c => c.id === code.id) : undefined;
       if (existing) Object.assign(existing, code);

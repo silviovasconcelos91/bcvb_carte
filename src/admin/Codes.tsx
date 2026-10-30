@@ -24,7 +24,7 @@ export function CodesAdmin() {
   const run = useRunner();
   const runRefresh = useRunRefresh();
   const confirm = useConfirm();
-  const empty = { kind: 'booster' as Kind, code: newCode(), label: '', set_id: '', card_count: '1', card_id: '', max_uses: '', expires_at: '' };
+  const empty = { kind: 'booster' as Kind, code: newCode(), label: '', set_id: '', card_count: '1', card_id: '', max_uses: '', expires_at: '', god_pack: '' };
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [poster, setPoster] = useState<BoosterCode | null>(null);
@@ -43,9 +43,9 @@ export function CodesAdmin() {
   async function create(e: FormEvent) {
     e.preventDefault();
     if (form.kind === 'card' && !picked) return;
-    // Une carte précise n'a jamais de série ni de nombre de cartes (contrainte de la base)
-    const reward = form.kind === 'card' ? { set_id: null, card_count: null, card_id: picked!.id }
-      : { set_id: form.set_id ? +form.set_id : null, card_count: form.kind === 'random' ? +form.card_count : null, card_id: null };
+    // Une carte précise n'a jamais de série, de nombre de cartes ni de god pack (contraintes de la base)
+    const reward = form.kind === 'card' ? { set_id: null, card_count: null, card_id: picked!.id, god_pack: false }
+      : { set_id: form.set_id ? +form.set_id : null, card_count: form.kind === 'random' ? +form.card_count : null, card_id: null, god_pack: !!form.god_pack };
     const row = {
       code: form.code.trim().toUpperCase(), label: form.label.trim() || null, ...reward,
       max_uses: form.max_uses ? +form.max_uses : null, expires_at: form.expires_at ? new Date(form.expires_at).toISOString() : null,
@@ -94,6 +94,9 @@ export function CodesAdmin() {
             </select></span><span id="code-set-help" className="hint">Vide : tirées dans toutes les séries actives</span></label>
           </>
         )}
+        {form.kind !== 'card' && (
+          <label className="check span"><input type="checkbox" checked={!!form.god_pack} onChange={e => set('god_pack', e.target.checked ? '1' : '')} /> God pack garanti : toutes les cartes parmi les raretés cochées « God pack »</label>
+        )}
         <label className="field"><span>Utilisations max</span><input className="input" type="number" min={1} placeholder="Illimitées" value={form.max_uses} onChange={e => set('max_uses', e.target.value)} /></label>
         <label className="field"><span>Expire le</span><input className="input" type="datetime-local" value={form.expires_at} onChange={e => set('expires_at', e.target.value)} /></label>
         {form.kind === 'card' && (
@@ -125,7 +128,7 @@ export function CodesAdmin() {
               <tr key={c.id}>
                 <td><code>{c.code}</code></td>
                 <td>{c.label}</td>
-                <td>{codeReward(d, c)}{codeCardUnreleased(d, c) && <> <span className="pill warn">Non publiée</span></>}</td>
+                <td>{codeReward(d, c)}{c.god_pack && <> <span className="pill">God pack</span></>}{codeCardUnreleased(d, c) && <> <span className="pill warn">Non publiée</span></>}</td>
                 <td className="num">{c.uses_count}{c.max_uses ? ` / ${c.max_uses}` : ''}</td>
                 <td>{c.expires_at ? fmtDateLong(c.expires_at) : 'Jamais'}</td>
                 <td><span className={`pill${status === 'active' ? ' ok' : ''}`}>{CODE_STATUS[status]}</span></td>

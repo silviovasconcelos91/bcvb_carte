@@ -124,13 +124,15 @@ export function SettingsAdmin() {
   const shownHours = String(Math.round(intervalMs(d.settings.free_booster_cooldown) / 36e5));
   const [hours, setHours] = useState(shownHours);
   const [stock, setStock] = useState(String(d.settings.free_booster_max ?? 1));
+  const [odds, setOdds] = useState(String(d.settings.god_pack_odds ?? 0));
+  const godOdds = Math.max(0, Math.floor(+odds) || 0);
   const [busy, setBusy] = useState(false);
   async function save(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     // Délai non modifié : la valeur exacte de la base est gardée (ex. « 90 minutes »), sans arrondi en heures
     const cooldown = hours === shownHours ? d.settings.free_booster_cooldown : `${Math.max(1, +hours)} hours`;
-    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: cooldown, free_booster_max: Math.max(1, Math.min(10, +stock)) };
+    const st = { booster_size: Math.max(1, Math.min(20, +size)), free_booster_cooldown: cooldown, free_booster_max: Math.max(1, Math.min(10, +stock)), god_pack_odds: godOdds };
     await runRefresh(() => api.saveSettings(st), 'Réglages enregistrés');
     setBusy(false);
   }
@@ -142,6 +144,8 @@ export function SettingsAdmin() {
         <label className="field"><span>Délai entre deux boosters gratuits (heures)</span><input className="input narrow" type="number" min={1} max={720} value={hours} onChange={e => setHours(e.target.value)} required /></label>
         <label className="field"><span>Boosters gratuits cumulables</span><input className="input narrow" type="number" min={1} max={10} value={stock} onChange={e => setStock(e.target.value)} required /></label>
         <p className="muted">Un booster se recharge à chaque délai. Un membre qui ne passe pas en garde jusqu'à ce nombre en réserve ; avec 1, le compteur s'arrête au premier booster. Les changements s'appliquent tout de suite.</p>
+        <label className="field"><span>God pack : 1 chance sur</span><input className="input narrow" type="number" min={0} step={1} value={odds} onChange={e => setOdds(e.target.value)} required /></label>
+        <p className="muted">{godOdds ? `1 booster sur ${godOdds.toLocaleString('fr-FR')}` : 'Désactivé'}. Toutes les cartes d'un god pack sont tirées parmi les raretés cochées « God pack » (onglet Raretés). 0 désactive le hasard ; les codes god pack fonctionnent toujours.</p>
         <div><button className="btn primary" disabled={busy}>Enregistrer</button></div>
       </form>
       <SignupCode />

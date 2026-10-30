@@ -165,7 +165,7 @@ function odds(d: AdminIndex, rows: Pick<Rarity, 'id' | 'weight'>[], setId: numbe
   }));
 }
 
-interface RarRow { id: number; code: string; label: string; weight: string; is_secret: boolean; effect: number; color: string; gems: string; badge: string; isNew?: boolean }
+interface RarRow { id: number; code: string; label: string; weight: string; is_secret: boolean; in_god_pack: boolean; effect: number; color: string; gems: string; badge: string; isNew?: boolean }
 // Symboles proposés à la place des losanges
 const BADGES = ['★', '★★', '★★★', '♥', '●', '♛', '⚡', '🔥', '🏐'];
 
@@ -180,7 +180,7 @@ export function RaritiesAdmin() {
   const { api, d, refresh } = useAdmin();
   const run = useRunner();
   const confirm = useConfirm();
-  const [rows, setRows] = useState<RarRow[]>(() => d.rarities.map(r => ({ id: r.id, code: r.code, label: r.label, weight: String(r.weight), is_secret: r.is_secret, effect: fxOf(r), color: colorOf(r), gems: r.gems == null ? '' : String(r.gems), badge: r.badge ?? '' })));
+  const [rows, setRows] = useState<RarRow[]>(() => d.rarities.map(r => ({ id: r.id, code: r.code, label: r.label, weight: String(r.weight), is_secret: r.is_secret, in_god_pack: !!r.in_god_pack, effect: fxOf(r), color: colorOf(r), gems: r.gems == null ? '' : String(r.gems), badge: r.badge ?? '' })));
   const [sel, setSel] = useState(() => rows[0]?.id ?? 1);
   const [busy, setBusy] = useState(false);
   const update = (id: number, patch: Partial<RarRow>) => setRows(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)));
@@ -202,7 +202,7 @@ export function RaritiesAdmin() {
   function add() {
     const id = Math.max(0, ...rows.map(r => r.id)) + 1;
     const fx = EFFECTS[2];
-    setRows(rs => [...rs, { id, code: `custom_${id}`, label: 'Nouvelle rareté', weight: '1', is_secret: false, effect: fx.id, color: fx.color, gems: '', badge: '', isNew: true }]);
+    setRows(rs => [...rs, { id, code: `custom_${id}`, label: 'Nouvelle rareté', weight: '1', is_secret: false, in_god_pack: false, effect: fx.id, color: fx.color, gems: '', badge: '', isNew: true }]);
     setSel(id);
   }
   async function remove(r: RarRow) {
@@ -217,7 +217,7 @@ export function RaritiesAdmin() {
     setBusy(true);
     const list = rows.map(r => ({
       id: r.id, code: r.code, label: r.label.trim() || d.rarities.find(x => x.id === r.id)?.label || `Rareté ${r.id}`,
-      weight: Math.max(0, +r.weight || 0), is_secret: r.is_secret, effect: r.effect, color: isHex(r.color) ? r.color.toUpperCase() : null, ...symbols(r),
+      weight: Math.max(0, +r.weight || 0), is_secret: r.is_secret, in_god_pack: r.in_god_pack, effect: r.effect, color: isHex(r.color) ? r.color.toUpperCase() : null, ...symbols(r),
     }));
     if (await run(() => api.saveRarities(list), 'Raretés enregistrées')) {
       setRows(rs => rs.map(r => ({ ...r, isNew: false })));
@@ -266,7 +266,7 @@ export function RaritiesAdmin() {
           </div>
         )}
         <div className="table-wrap"><table className="tbl">
-          <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th>Losanges</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th><span className="sr-only">Actions</span></th></tr></thead>
+          <thead><tr><th>Rareté</th><th>Effet</th><th>Couleur</th><th>Losanges</th><th className="num">Poids</th><th className="num">Par carte</th><th className="num">Au moins une par booster</th><th>Secrète</th><th>God pack</th><th><span className="sr-only">Actions</span></th></tr></thead>
           <tbody>
             {rows.map(r => {
               const x = o.get(r.id);
@@ -284,6 +284,7 @@ export function RaritiesAdmin() {
                   <td className="num"><input className="input narrow" type="number" min={0} step={0.1} value={r.weight} onChange={e => update(r.id, { weight: e.target.value })} aria-label={`Poids de ${r.label}`} /></td>
                   {x ? <><td className="num odds">{fmtPct(x.p)}</td><td className="num odds">{fmtPct(x.booster)}</td></> : <td className="num odds muted" colSpan={2}>aucune carte à tirer</td>}
                   <td><label className="check"><input type="checkbox" checked={r.is_secret} onChange={e => update(r.id, { is_secret: e.target.checked })} /><span className="sr-only">Rareté secrète</span></label></td>
+                  <td><label className="check"><input type="checkbox" checked={r.in_god_pack} onChange={e => update(r.id, { in_god_pack: e.target.checked })} /><span className="sr-only">Peut tomber dans un god pack</span></label></td>
                   <td className="actions">
                     {r.isNew && <span className="tag">non enregistrée</span>}
                     {(r.isNew || !used(r.id)) && <> <button type="button" className="btn small danger" onClick={() => void remove(r)}>Supprimer</button></>}
