@@ -11,16 +11,19 @@ import './styles/base.css';
 import { ToastProvider } from './components/Toasts';
 import GameApp from './game/GameApp';
 
-// Deux pages : le jeu (/) et la console d'administration (/admin), chargée à part
-// pour que les membres ne téléchargent pas son code.
+// Trois pages : le jeu (/), la console d'administration (/admin), chargée à part
+// pour que les membres ne téléchargent pas son code, et la démo d'ouverture de booster (/demo).
 const AdminApp = lazy(() => import('./admin/AdminApp'));
-const isAdmin = /^\/admin\/?$/.test(window.location.pathname);
+const RevealDemo = lazy(() => import('./game/RevealDemo'));
+const path = window.location.pathname;
+const isAdmin = /^\/admin\/?$/.test(path);
+const isDemo = /^\/demo\/?$/.test(path);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
-      {isAdmin ? (
-        <Suspense fallback={<div className="loading">Chargement…</div>}><AdminApp /></Suspense>
+      {isAdmin || isDemo ? (
+        <Suspense fallback={<div className="loading">Chargement…</div>}>{isAdmin ? <AdminApp /> : <RevealDemo />}</Suspense>
       ) : <GameApp />}
     </ToastProvider>
   </StrictMode>,
