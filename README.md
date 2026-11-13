@@ -72,6 +72,21 @@ Tu peux aussi déployer depuis ton poste avec la CLI : `npx vercel` (prévisuali
 
 La clé publishable peut être publique : ce sont les règles de sécurité de la base qui protègent les données. Ne mets jamais la clé secrète dans une variable `VITE_…`, elle se retrouverait dans le code envoyé aux navigateurs.
 
+## Générer une série
+
+Dans Claude Code, demande par exemple : « génère les cartes communes d'une nouvelle série sur l'équipe de France de volley ». Le skill `.claude/skills/generer-serie` cherche l'effectif, récupère une photo par joueur, rédige poste et description, te montre un aperçu, puis importe les cartes.
+
+Avant la première fois, renseigne dans `.env.local` l'URL du vrai projet (`VITE_SUPABASE_URL`) et `SUPABASE_SERVICE_ROLE_KEY` (Project Settings > API Keys > clé secrète). Cette clé n'est lue que par le script d'import, jamais par le site.
+
+L'import passe par `node scripts/import-serie.mjs <manifeste.json> [--dry-run]` :
+
+- la série est créée si besoin, **hors boosters** ; les cartes arrivent **en préparation** et se publient depuis `/admin` > Cartes ;
+- les photos sont recadrées en carré de 720 px (et vignette de 240 px) sur la zone la plus saillante ; un mauvais cadrage se corrige dans la console ;
+- une carte déjà présente dans la série (même nom) est ignorée : relancer ne crée pas de doublon ;
+- `--dry-run` vérifie le manifeste et les photos sans rien écrire.
+
+Les tests du script : `npm run test:scripts`.
+
 ## Organisation du code
 
 ```
