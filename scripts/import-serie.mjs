@@ -47,7 +47,7 @@ console.log(`Série « ${r.set.name} » : ${r.set.created ? (dryRun ? 'serait cr
 console.log(`\n${dryRun ? 'Cartes à créer' : 'Cartes créées'} : ${r.created.length}`);
 for (const c of r.created) console.log(`  n°${c.number}  ${c.name}`);
 if (r.skipped.length) { console.log(`\nIgnorées : ${r.skipped.length}`); for (const c of r.skipped) console.log(`  ${c.name} (${c.reason})`); }
-if (r.noPhoto.length) { console.log(`\nSans photo : ${r.noPhoto.length}`); for (const n of r.noPhoto) console.log(`  ${n}`); }
+if (r.noPhoto.length) { console.log(`\nSans photo : ${r.noPhoto.length}`); for (const c of r.noPhoto) console.log(`  ${c.name} : ${c.reason}`); }
 if (r.failed.length) { console.log(`\nÉchecs : ${r.failed.length}`); for (const c of r.failed) console.log(`  ${c.name} : ${c.error}`); }
 if (!dryRun && r.created.length) console.log('\nCartes en préparation : publie-les depuis /admin > Cartes, puis active la série dans les boosters.');
 process.exit(r.failed.length ? 1 : 0);

@@ -10,10 +10,11 @@ function ok({ data, error }) {
   return data;
 }
 
-// Photo prête à envoyer, ou null si elle manque ou ne se lit pas
+// Photo prête à envoyer, ou la raison pour laquelle il n'y en a pas
 async function readPhoto(path) {
-  if (!path || !existsSync(path)) return null;
-  try { return await processPhoto(path); } catch { return null; }
+  if (!path) return { reason: 'aucune photo fournie' };
+  if (!existsSync(path)) return { reason: 'fichier introuvable' };
+  try { return { photo: await processPhoto(path) }; } catch (e) { return { reason: `image illisible (${e.message})` }; }
 }
 
 // Importe un manifeste validé (parseManifest) : série, photos, cartes en préparation
@@ -42,8 +43,8 @@ export async function importSeries(manifest, sb, { dryRun = false, now = Date.no
 
   for (const [i, c] of todo.entries()) {
     const number = numbers[i];
-    const photo = await readPhoto(c.photo);
-    if (!photo) report.noPhoto.push(c.name);
+    const { photo, reason } = await readPhoto(c.photo);
+    if (!photo) report.noPhoto.push({ name: c.name, reason });
     if (dryRun) { report.created.push({ name: c.name, number }); continue; }
 
     const uploaded = [];

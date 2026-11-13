@@ -94,7 +94,7 @@ test('photo introuvable : carte créée sans image et signalée', async () => {
   const row = f.calls.insert.find(c => c.table === 'cards').row;
   assert.equal(row.image_path, null);
   assert.equal(row.thumb_path, null);
-  assert.deepEqual(report.noPhoto, ['Antoine Brizard']);
+  assert.deepEqual(report.noPhoto, [{ name: 'Antoine Brizard', reason: 'fichier introuvable' }]);
   assert.equal(f.calls.upload.length, 0);
 });
 
@@ -121,4 +121,13 @@ test('dry-run : rien n’est écrit', async () => {
 test('rareté inconnue : refus explicite', async () => {
   const f = fakeSupabase({ rarities: rarities(), card_sets: [], cards: [] });
   await assert.rejects(importSeries({ set: 'EDF', rarity: 'inconnue', cards: [card('A')] }, f.sb), /inconnue/);
+});
+
+test('photo illisible : raison donnée dans le rapport', async () => {
+  const bad = join(mkdtempSync(join(tmpdir(), 'import-serie-')), 'page.jpg');
+  writeFileSync(bad, '<html>erreur 403</html>');
+  const f = fakeSupabase({ rarities: rarities(), card_sets: [], cards: [] });
+  const report = await importSeries({ set: 'EDF', rarity: 'common', cards: [card('Yacine Louati', { photo: bad })] }, f.sb, { dryRun: true });
+  assert.equal(report.noPhoto[0].name, 'Yacine Louati');
+  assert.match(report.noPhoto[0].reason, /^image illisible/);
 });

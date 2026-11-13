@@ -20,6 +20,9 @@ export function nextNumbers(existing, count) {
   return Array.from({ length: count }, (_, i) => max + 1 + i);
 }
 
+// Mêmes limites que les champs de la console (CardForm), pour lesquelles la carte est dessinée
+const MAX_LENGTH = { name: 40, subtitle: 40, description: 160 };
+
 const text = v => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
 export function parseManifest(raw) {
@@ -40,7 +43,11 @@ export function parseManifest(raw) {
       errors.push(`${at} : « numero » doit être un entier entre 0 et 99`);
       numero = null;
     }
-    return { name: name ?? '', subtitle: text(c?.subtitle), description: text(c?.description), numero, photo: text(c?.photo) };
+    const card = { name: name ?? '', subtitle: text(c?.subtitle), description: text(c?.description), numero, photo: text(c?.photo) };
+    for (const [field, max] of Object.entries(MAX_LENGTH)) {
+      if (card[field] && card[field].length > max) errors.push(`${at} : « ${field} » dépasse ${max} caractères (${card[field].length})`);
+    }
+    return card;
   });
 
   cards.forEach((c, i) => {

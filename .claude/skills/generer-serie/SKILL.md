@@ -32,7 +32,7 @@ N'importe quelle source convient (Wikimedia Commons, site du club ou de la féd�
 
 - `name` : prénom et nom.
 - `subtitle` : poste en français. Volley : Passeur, Pointu, Réceptionneur-attaquant, Central, Libéro (au féminin pour une équipe féminine : Passeuse, Centrale…). Autre sport : le poste usuel en français.
-- `description` : 1 à 2 phrases, ton carte à collectionner, factuelles (club, palmarès, trait marquant). Pas de stats, pas d'information non vérifiée.
+- `description` : 1 à 2 phrases courtes, **160 caractères maximum** (le script refuse au-delà ; `name` et `subtitle` : 40 max), ton carte à collectionner, factuelles (club, palmarès, trait marquant). Pas de stats, pas d'information non vérifiée.
 - `numero` : numéro de maillot (entier 0–99), sinon l'omettre.
 
 ## 5. Aperçu obligatoire

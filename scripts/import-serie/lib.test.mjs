@@ -47,3 +47,10 @@ test('parseManifest signale l’index de la carte sans nom', () => {
 test('parseManifest refuse deux cartes du même nom', () => {
   assert.throws(() => parseManifest({ set: 'EDF', cards: [{ name: 'Trévor Clévenot' }, { name: 'trevor clevenot' }] }), /double/);
 });
+
+test('parseManifest applique les limites de la console (40 / 40 / 160)', () => {
+  assert.throws(() => parseManifest({ set: 'EDF', cards: [{ name: 'x'.repeat(41) }] }), /#1.*name.*40/);
+  assert.throws(() => parseManifest({ set: 'EDF', cards: [{ name: 'A', subtitle: 'x'.repeat(41) }] }), /subtitle.*40/);
+  assert.throws(() => parseManifest({ set: 'EDF', cards: [{ name: 'A', description: 'x'.repeat(161) }] }), /description.*160/);
+  assert.doesNotThrow(() => parseManifest({ set: 'EDF', cards: [{ name: 'x'.repeat(40), description: 'x'.repeat(160) }] }));
+});
