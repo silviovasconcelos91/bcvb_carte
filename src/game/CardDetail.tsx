@@ -1,12 +1,47 @@
+import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { pad2, plural } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
-import { Avatar, CardBack, CardView, medalOf } from '../components/visuals';
+import { Avatar, CardBack, CardView, IconChevron, medalOf } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { qtyOf, useGame } from './context';
 
-export function CardDetail({ id, onClose }: { id: number; onClose: () => void }) {
+interface Props {
+  id: number;
+  /** Cartes voisines (ordre du classeur) : swipe, flèches du clavier ou boutons pour passer de l'une à l'autre */
+  list?: number[];
+  onNavigate?: (id: number) => void;
+  onClose: () => void;
+}
+
+export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
   const { d, uid, openComposer } = useGame();
   const L = useLookup();
+  const idx = onNavigate ? list.indexOf(id) : -1;
+  const prevId = idx > 0 ? list[idx - 1] : null;
+  const nextId = idx >= 0 && idx < list.length - 1 ? list[idx + 1] : null;
+  // Sens du dernier déplacement, pour faire entrer la carte du bon côté
+  const [dir, setDir] = useState<'prev' | 'next' | null>(null);
+  const go = (to: number | null, way: 'prev' | 'next') => { if (to != null && onNavigate) { setDir(way); onNavigate(to); } };
+  const keyNav = useRef<(k: string) => void>(() => {});
+  keyNav.current = k => { if (k === 'ArrowLeft') go(prevId, 'prev'); else if (k === 'ArrowRight') go(nextId, 'next'); };
+  useEffect(() => {
+    if (!onNavigate) return;
+    const onKey = (e: KeyboardEvent) => { if (!e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) keyNav.current(e.key); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onNavigate]);
+  // Swipe horizontal au doigt ; un geste surtout vertical reste un défilement de la fiche
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: TouchEvent) => { touch.current = e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null; };
+  const onTouchEnd = (e: TouchEvent) => {
+    const t0 = touch.current;
+    touch.current = null;
+    if (!t0) return;
+    const dx = e.changedTouches[0].clientX - t0.x, dy = e.changedTouches[0].clientY - t0.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    if (dx < 0) go(nextId, 'next'); else go(prevId, 'prev');
+  };
+
   const c = d.cardById.get(id);
   if (!c) return null;
   const q = qtyOf(d, uid, id);
@@ -17,9 +52,15 @@ export function CardDetail({ id, onClose }: { id: number; onClose: () => void })
     : "Tu ne l'as pas : son nom et son illustration apparaîtront quand tu l'auras.";
   const medal = medalOf(q);
   return (
-    <Modal title={cardName(c)} onClose={onClose}>
-      <div className="detail">
-        <div className="detail-card">{c.masked ? <CardBack /> : <CardView card={c} copies={q} tilt size="full" />}</div>
+    <Modal title={cardName(c)} onClose={onClose} footer={idx >= 0 && list.length > 1 ? (
+      <div className="detail-nav">
+        <button className="btn small" onClick={() => go(prevId, 'prev')} disabled={prevId == null} aria-label="Carte précédente"><IconChevron dir="left" /><span>Précédente</span></button>
+        <span className="detail-pos" aria-live="polite">{idx + 1} / {list.length}</span>
+        <button className="btn small" onClick={() => go(nextId, 'next')} disabled={nextId == null} aria-label="Carte suivante"><span>Suivante</span><IconChevron dir="right" /></button>
+      </div>
+    ) : undefined}>
+      <div className="detail" onTouchStart={idx >= 0 ? onTouchStart : undefined} onTouchEnd={idx >= 0 ? onTouchEnd : undefined}>
+        <div className={`detail-card${dir ? ` from-${dir}` : ''}`} key={id}>{c.masked ? <CardBack /> : <CardView card={c} copies={q} tilt size="full" />}</div>
         <div>
           <p className="detail-meta">
             <span className={`rlabel ${rClass(L, c)}`}>{c.rarity_id ? <i /> : null}{rarText(L, c)}</span>

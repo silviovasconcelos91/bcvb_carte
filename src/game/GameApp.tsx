@@ -46,7 +46,7 @@ export default function GameApp() {
   const [pending, setPending] = useState<Profile | null>(null); // compte en attente de validation
   const [account, setAccount] = useState(false);
   const [tab, setTabState] = useState<Tab>('booster');
-  const [detailId, setDetailId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<{ id: number; list?: number[] } | null>(null);
   const [composer, setComposer] = useState<ComposerOpts | null>(null);
   const [drawn, setDrawn] = useState<DrawnCard[] | null>(null);
   const [pendingCode, setPendingCodeState] = useState(readPendingCode);
@@ -120,7 +120,7 @@ export default function GameApp() {
     api, uid, d, tab,
     setTab: (t: Tab) => { setTabState(t); window.scrollTo(0, 0); },
     refresh: async () => { await load(uid); },
-    openCard: (id: number) => setDetailId(id),
+    openCard: (id: number, list?: number[]) => setDetail({ id, list }),
     openComposer: (opts = {}) => setComposer(opts),
     showReveal: (cards: DrawnCard[]) => setDrawn(cards),
     pendingCode, setPendingCode,
@@ -166,7 +166,7 @@ export default function GameApp() {
           {tab === 'leaderboard' && <LeaderboardView />}
           {tab === 'propose' && <ProposeView />}
         </main>
-        {detailId != null && <CardDetail id={detailId} onClose={() => setDetailId(null)} />}
+        {detail && <CardDetail id={detail.id} list={detail.list} onNavigate={id => setDetail({ ...detail, id })} onClose={() => setDetail(null)} />}
         {composer && <Composer opts={composer} onClose={() => setComposer(null)} />}
         {account && <Account onClose={() => setAccount(false)} onLogout={() => void logout()} />}
         {drawn && <Reveal drawn={drawn} onClose={goCollection => { setDrawn(null); if (goCollection) ctx.setTab('collection'); }} />}

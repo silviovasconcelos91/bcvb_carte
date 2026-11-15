@@ -612,6 +612,14 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .detail-desc { margin: 14px 0 0; font-size: 17px; }
 .detail-own { margin: 14px 0 0; font-weight: 600; }
 .detail .h3 { margin-top: 24px; }
+.detail { touch-action: pan-y; }
+.detail-card.from-next { animation: detail-in-next .22s ease-out; }
+.detail-card.from-prev { animation: detail-in-prev .22s ease-out; }
+@keyframes detail-in-next { from { opacity: 0; transform: translateX(36px); } }
+@keyframes detail-in-prev { from { opacity: 0; transform: translateX(-36px); } }
+.detail-nav { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 10px; }
+.detail-nav .btn svg { width: 18px; height: 18px; }
+.detail-pos { color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
 .owners { margin: 0; padding: 0; list-style: none; }
 .owners li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
 .owner-name { font-weight: 600; }

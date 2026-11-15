@@ -37,7 +37,8 @@ export interface GameCtx {
   tab: Tab;
   setTab: (t: Tab) => void;
   refresh: () => Promise<void>;
-  openCard: (id: number) => void;
+  /** `list` : cartes voisines, parcourues par swipe ou flèches depuis la fiche */
+  openCard: (id: number, list?: number[]) => void;
   openComposer: (opts?: ComposerOpts) => void;
   showReveal: (cards: DrawnCard[]) => void;
   pendingCode: string;

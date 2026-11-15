@@ -120,7 +120,7 @@ export function CollectionView() {
   }
   function pocket(card: Card) {
     const q = mine.get(card.id) ?? 0;
-    const open = () => openCard(card.id);
+    const open = () => openCard(card.id, list.map(x => x.id));
     const keys = (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } };
     if (q) {
       return (
