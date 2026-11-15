@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Modal } from '../components/Modal';
 import { useRunner, useToast } from '../components/Toasts';
 import { useGame } from './context';
+import { useTheme, type Theme } from '../lib/theme';
+
+const THEMES: [Theme, string][] = [['auto', 'Automatique'], ['light', 'Clair'], ['dark', 'Sombre']];
 
 // « Mon compte » : pseudo affiché, identifiant de connexion, mot de passe
 export function Account({ onClose, onLogout }: { onClose: () => void; onLogout: () => void }) {
@@ -11,6 +14,7 @@ export function Account({ onClose, onLogout }: { onClose: () => void; onLogout: 
   const [name, setName] = useState(d.me.username);
   const [login, setLogin] = useState('');
   const [busy, setBusy] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => { api.loginId().then(setLogin, () => { /* identifiant indisponible : non affiché */ }); }, [api]);
 
@@ -43,6 +47,13 @@ export function Account({ onClose, onLogout }: { onClose: () => void; onLogout: 
         </div>
         <p className="form-help">C'est le nom que voient les autres membres. Ton identifiant de connexion, lui, ne change pas.</p>
       </form>
+      <div className="account">
+        <h3 id="acc-theme">Affichage</h3>
+        <div><div className="seg" role="group" aria-labelledby="acc-theme">
+          {THEMES.map(([v, l]) => <button key={v} type="button" aria-pressed={theme === v} onClick={() => setTheme(v)}>{l}</button>)}
+        </div></div>
+        <p className="form-help">Automatique suit le réglage de ton téléphone ou de ton ordinateur.</p>
+      </div>
       {api.mode === 'supabase' && (
         <>
           <div className="account">

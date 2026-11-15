@@ -1,6 +1,7 @@
 import { CONFIG } from '../config';
 import { plural } from '../lib/format';
-import { Avatar, Logo } from '../components/visuals';
+import { Avatar, IconMoon, IconSun, Logo } from '../components/visuals';
+import { useTheme } from '../lib/theme';
 import { pendingTrades, useGame, type Tab } from './context';
 
 const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collection'], ['trades', 'Échanges'], ['leaderboard', 'Classement'], ['propose', 'Proposer']];
@@ -8,11 +9,15 @@ const TABS: [Tab, string][] = [['booster', 'Booster'], ['collection', 'Collectio
 export function Header({ onLogout, onSwitch, onAccount }: { onLogout: () => void; onSwitch: (uid: string) => void; onAccount: () => void }) {
   const { api, d, uid, tab, setTab } = useGame();
   const received = pendingTrades(d, uid, 'received').length;
+  const { dark, setTheme } = useTheme();
   return (
     <header className="top">
       <div className="top-in">
         <div className="brand"><Logo /><h1 className="brand-name">Cartes du {CONFIG.clubName}</h1></div>
         <div className="who">
+          <button className="icon-btn" onClick={() => setTheme(dark ? 'light' : 'dark')} aria-label={dark ? 'Passer en mode clair' : 'Passer en mode sombre'} title={dark ? 'Mode clair' : 'Mode sombre'}>
+            {dark ? <IconSun /> : <IconMoon />}
+          </button>
           <Avatar name={d.me.username} small />
           {api.demo ? (
             <span className="select-wrap">
