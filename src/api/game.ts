@@ -18,7 +18,8 @@ export interface GameData {
   trades: Trade[];
 }
 
-export interface BoosterStats { boosters: number; cards: number }
+// Par série : un booster de plusieurs séries compte dans chacune d'elles
+export interface BoosterStats { set_id: number; boosters: number; cards: number }
 // Carte secrète qu'un autre membre a en double et que je n'ai pas : seul son identifiant est connu
 export interface SecretDouble { user_id: string; card_id: number; quantity: number }
 
@@ -37,8 +38,8 @@ export interface GameApi {
   load(uid: string): Promise<GameData>;
   // setId : série choisie par le membre (null = toutes les séries des boosters) ; un code lié à une série l'emporte
   openBooster(code: string | null, setId?: number | null): Promise<DrawnCard[]>;
-  // Boosters ouverts par le membre (gratuits et codes) et cartes qu'ils lui ont rapportées
-  boosterStats(uid: string): Promise<BoosterStats>;
+  // Boosters ouverts par le membre connecté (gratuits et codes) et cartes qu'ils lui ont rapportées, par série
+  boosterStats(): Promise<BoosterStats[]>;
   // Cartes secrètes en double chez les autres, que je n'ai pas (vide si je n'ai aucune carte secrète)
   secretDoubles(): Promise<SecretDouble[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
@@ -109,11 +110,7 @@ function createSupabaseGameApi(): GameApi {
     },
     // p_set_id envoyé seulement s'il est choisi : une base sans le patch du choix de série reste utilisable
     openBooster: (code, setId) => rpc<DrawnCard[]>('open_booster', { p_code: code || null, ...(setId != null && { p_set_id: setId }) }),
-    async boosterStats(uid) {
-      // La RLS ne laisse lire que ses propres ouvertures
-      const rows = await fetchAll<{ card_ids: number[] }>(() => sb.from('booster_openings').select('card_ids').eq('user_id', uid).order('id'));
-      return { boosters: rows.length, cards: rows.reduce((n, r) => n + r.card_ids.length, 0) };
-    },
+    boosterStats: () => rpc<BoosterStats[]>('my_booster_stats', {}),
     secretDoubles: () => rpc<SecretDouble[]>('secret_doubles', {}),
     createTrade: (to, offer, request, message) => rpc<number>('create_trade', { p_recipient: to, p_offer: offer, p_request: request, p_message: message || null }),
     acceptTrade: id => rpc<TradeStatus>('accept_trade', { p_trade_id: id }),
@@ -176,7 +173,8 @@ interface DemoDb {
   trades: Trade[];
   nextTradeId: number;
   proposals: Proposal[];
-  opened: Record<string, BoosterStats>; // comme booster_openings : les cartes du départ n'y comptent pas
+  // Par membre puis par série, comme my_booster_stats() : les cartes du départ n'y comptent pas
+  openedBySet: Record<string, Record<number, Omit<BoosterStats, 'set_id'>>>;
 }
 
 function createDemoGameApi(): GameApi {
@@ -207,7 +205,7 @@ function createDemoGameApi(): GameApi {
       version: 1, current: null, settings: { booster_size: 5, free_booster_cooldown: '1 day', free_booster_max: 2, god_pack_odds: 0 },
       rarities: clone(DEMO_RARITIES), sets: clone(DEMO_SETS), cards: clone(DEMO_CARDS),
       profiles: DEMO_MEMBERS.map(m => ({ ...m, status: 'active', last_free_booster_at: null })),
-      owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1, proposals: [], opened: {},
+      owned: {}, discovered: {}, redemptions: [], trades: [], nextTradeId: 1, proposals: [], openedBySet: {},
       codes: clone(DEMO_CODES),
     };
     for (const p of db.profiles) for (let i = 0; i < 14; i++) add(p.id, draw(null).id, 1);
@@ -231,7 +229,7 @@ function createDemoGameApi(): GameApi {
   if (stored?.version === 1) {
     db = stored;
     db.proposals ??= []; // démo enregistrée avant les propositions
-    db.opened ??= {}; // démo enregistrée avant le compteur de boosters
+    db.openedBySet ??= {}; // démo enregistrée avant le compteur de boosters par série
     for (const p of db.profiles) p.status ??= 'active'; // démo enregistrée avant les statuts
     for (const c of DEMO_CODES) if (!db.codes.some(x => x.code === c.code)) db.codes.push(clone(c)); // codes ajoutés depuis
     for (const r of db.rarities) r.in_god_pack ??= DEMO_RARITIES.find(x => x.code === r.code)?.in_god_pack ?? false; // démo enregistrée avant les god packs
@@ -306,13 +304,18 @@ function createDemoGameApi(): GameApi {
         p.last_free_booster_at = new Date(clock + cd).toISOString();
       }
       const result = drawn.map(c => ({ card_id: c.id, name: c.name, rarity_id: c.rarity_id ?? 1, image_path: c.image_path, is_new: add(me, c.id, 1), god_pack: god }));
-      const stats = (db.opened[me] ??= { boosters: 0, cards: 0 });
-      stats.boosters++;
-      stats.cards += drawn.length;
+      const bySet = (db.openedBySet[me] ??= {});
+      for (const sid of new Set(drawn.map(c => c.set_id))) {
+        const s = (bySet[sid] ??= { boosters: 0, cards: 0 });
+        s.boosters++;
+        s.cards += drawn.filter(c => c.set_id === sid).length;
+      }
       save();
       return clone(result);
     },
-    async boosterStats(uid) { return clone(db.opened[uid] ?? { boosters: 0, cards: 0 }); },
+    async boosterStats() {
+      return Object.entries(db.openedBySet[db.current ?? ''] ?? {}).map(([sid, s]) => ({ set_id: +sid, ...s }));
+    },
     async secretDoubles() {
       // Comme secret_doubles() : réservé à qui a au moins une carte secrète
       const me = db.current ?? '';

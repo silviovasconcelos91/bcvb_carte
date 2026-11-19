@@ -36,8 +36,8 @@ export function BoosterView() {
   useEffect(() => { const t = setInterval(() => setTick(n => n + 1), 30000); return () => clearInterval(t); }, []);
   useEffect(() => { setCode(pendingCode); }, [pendingCode]);
   // Compteur personnel, relu après chaque ouverture ; masqué tant qu'il n'est pas chargé ou en cas d'erreur
-  const [stats, setStats] = useState<BoosterStats | null>(null);
-  const loadStats = () => api.boosterStats(uid).then(setStats, () => setStats(null));
+  const [stats, setStats] = useState<BoosterStats[] | null>(null);
+  const loadStats = () => api.boosterStats().then(setStats, () => setStats(null));
   useEffect(() => { void loadStats(); }, [api, uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Le choix n'apparaît qu'avec plusieurs séries ; avec une seule, le booster reste celui de toutes les séries
@@ -49,6 +49,9 @@ export function BoosterView() {
     try { localStorage.setItem(SET_KEY, String(id)); } catch { /* gardé en mémoire */ }
   };
   const chosen = setId == null ? null : d.lookup.setById.get(setId);
+  // Compteur de la série choisie, ou de la seule série des boosters
+  const statSet = chosen ?? (sets.length === 1 ? sets[0] : null);
+  const setStat = statSet && stats?.find(s => s.set_id === statSet.id);
 
   const st = d.settings;
   const cooldown = intervalMs(st.free_booster_cooldown);
@@ -133,11 +136,11 @@ export function BoosterView() {
           )}
           <button className="btn primary big" disabled={!available || busy !== null} onClick={() => void open(null)}>{openLabel}</button>
           <p className="cooldown" aria-live="polite">{status}</p>
-          {stats && (
+          {stats && statSet && (
             <p className="booster-stats">
-              {stats.boosters
-                ? <>Tu as ouvert <strong>{plural(stats.boosters, 'booster', 'boosters')}</strong> et récupéré <strong>{plural(stats.cards, 'carte', 'cartes')}</strong>.</>
-                : "Tu n'as pas encore ouvert de booster."}
+              {setStat
+                ? <>{statSet.name} : tu as ouvert <strong>{plural(setStat.boosters, 'booster', 'boosters')}</strong> et récupéré <strong>{plural(setStat.cards, 'carte', 'cartes')}</strong>.</>
+                : `${statSet.name} : tu n'as pas encore ouvert de booster de cette série.`}
             </p>
           )}
           {pendingCode && <p className="cooldown">Code scanné : il ne reste plus qu'à l'utiliser.</p>}
