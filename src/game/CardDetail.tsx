@@ -47,6 +47,8 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
   const q = qtyOf(d, uid, id);
   const set = L.setById.get(c.set_id);
   const owners = d.profiles.filter(p => p.id !== uid).map(p => [p, qtyOf(d, p.id, id)] as const).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
+  // Membres à qui je peux la proposer : seulement si je l'ai (comptes en attente exclus, ils n'ont pas accès au jeu)
+  const missing = q ? d.profiles.filter(p => p.id !== uid && p.status !== 'pending' && !qtyOf(d, p.id, id)) : [];
   const own = q
     ? (q > 1 ? `Tu en as ${q}, dont ${plural(q - 1, 'double', 'doubles')} à échanger.` : 'Tu en as 1.')
     : "Tu ne l'as pas : son nom et son illustration apparaîtront quand tu l'auras.";
@@ -81,6 +83,20 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
               ))}
             </ul>
           ) : <p className="muted">Aucun autre membre ne l'a pour l'instant.</p>}
+          {q > 0 && <>
+            <h3 className="h3">Qui ne l'a pas&nbsp;?</h3>
+            {missing.length ? (
+              <ul className="owners">
+                {missing.map(p => (
+                  <li key={p.id}>
+                    <Avatar name={p.username} small />
+                    <span className="owner-name grow">{p.username}</span>
+                    <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, give: [[c.id, 1]] }); }}>Lui proposer</button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="muted">Tous les membres l'ont déjà.</p>}
+          </>}
         </div>
       </div>
     </Modal>

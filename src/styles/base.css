@@ -627,6 +627,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .owners li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); }
 .owner-name { font-weight: 600; }
 .owner-q { margin-right: auto; color: var(--muted); font-size: 14px; }
+.owner-name.grow { margin-right: auto; }
 
 .pick-list { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
 .pick { appearance: none; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; cursor: pointer; }
