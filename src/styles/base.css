@@ -599,6 +599,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .modal.wide { width: min(960px, 100%); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 12px 22px; border-bottom: 1px solid var(--line); }
 .modal-head h2 { margin: 0; font: 700 25px/1.1 var(--font-c); }
+.modal-sub { flex: none; padding: 10px 22px; border-bottom: 1px solid var(--line); }
 .modal-body { flex: 1 1 auto; overflow-y: auto; padding: 20px 22px 24px; }
 .modal-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 14px; padding: 12px 22px; border-top: 1px solid var(--line); }
 .modal-foot:empty { display: none; }
@@ -639,7 +640,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .pick-empty { margin: 0; padding: 14px; border: 1px dashed var(--line); border-radius: 12px; }
 .link-btn { appearance: none; padding: 0; border: 0; background: none; color: var(--club); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 /* Fenêtre d'échange : côté, recherche, filtres, grille de cartes et récap */
-.composer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.composer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .composer-search { flex: 1 1 200px; width: auto; min-height: 40px; }
 .pick-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
 .fchip { appearance: none; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text); font: 600 14px/1 var(--font); cursor: pointer; }
@@ -678,7 +679,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .step { appearance: none; display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font: 600 20px/1 var(--font); cursor: pointer; }
 .step:disabled { opacity: .35; cursor: default; }
 .step-n { min-width: 22px; font: 700 19px/1 var(--font-c); text-align: center; }
-.msg-label { display: block; margin: 18px 0 6px; font-weight: 600; }
+.composer-msg { min-height: 40px; }
 .composer-sum { margin: 0; color: var(--muted); }
 
 /* ---------- Ouverture du booster ---------- */

@@ -184,6 +184,8 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
         <div className="rc-side"><span className="swap-label">Tu reçois</span><div className="rc-list">{recap('want')}</div></div>
       </div>
       {lastOnes.length > 0 && <p className="rc-warn">⚠ Tu donnerais {lastOnes.length > 1 ? 'tes derniers exemplaires de' : 'ton dernier exemplaire de'} {listFr(lastOnes.map(cardName))}.</p>}
+      <input className="input composer-msg" maxLength={280} value={message} onChange={e => setMessage(e.target.value)}
+        placeholder="Message (facultatif), ex. Il me manque celle-là pour finir la série" aria-label="Message (facultatif)" />
       <div className="rc-foot">
         <p className="composer-sum">{summary}</p>
         <button className="btn primary" disabled={!(g + w) || busy} onClick={() => void send()}>{opts.counter ? 'Envoyer la contre-proposition' : 'Envoyer la proposition'}</button>
@@ -191,8 +193,19 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
     </div>
   ) : undefined;
 
+  // Reste visible en haut quand on fait défiler les cartes
+  const bar = to ? (
+    <div className="composer-bar">
+      <div className="seg" role="group" aria-label="Côté de l'échange">
+        <button aria-pressed={side === 'give'} onClick={() => setSide('give')}>Je donne{g > 0 && <span className="seg-n">{g}</span>}</button>
+        <button aria-pressed={side === 'want'} onClick={() => setSide('want')}>Je demande{w > 0 && <span className="seg-n">{w}</span>}</button>
+      </div>
+      <input className="input composer-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher une carte…" aria-label="Rechercher une carte" />
+    </div>
+  ) : undefined;
+
   return (
-    <Modal title={opts.counter ? 'Contre-proposition' : 'Nouvel échange'} onClose={onClose} wide footer={footer}>
+    <Modal title={opts.counter ? 'Contre-proposition' : 'Nouvel échange'} onClose={onClose} wide footer={footer} sub={bar}>
       {!to ? (
         <>
           <p className="muted">Avec qui veux-tu échanger&nbsp;?</p>
@@ -221,16 +234,7 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
             <span>{opts.counter ? 'Contre-proposition à' : 'Échange avec'} <strong>{toName}</strong></span>
             {!opts.counter && <button className="btn small ghost" onClick={() => setTo(null)}>Changer de membre</button>}
           </div>
-          <div className="composer-bar">
-            <div className="seg" role="group" aria-label="Côté de l'échange">
-              <button aria-pressed={side === 'give'} onClick={() => setSide('give')}>Je donne{g > 0 && <span className="seg-n">{g}</span>}</button>
-              <button aria-pressed={side === 'want'} onClick={() => setSide('want')}>Je demande{w > 0 && <span className="seg-n">{w}</span>}</button>
-            </div>
-            <input className="input composer-search" type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Rechercher une carte…" aria-label="Rechercher une carte" />
-          </div>
           {grid(side)}
-          <label className="msg-label" htmlFor="trade-msg">Message (facultatif)</label>
-          <textarea id="trade-msg" className="input textarea" maxLength={280} value={message} onChange={e => setMessage(e.target.value)} placeholder="Ex. Il me manque celle-là pour finir la série" />
         </>
       )}
     </Modal>

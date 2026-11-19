@@ -7,13 +7,15 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /** Bandeau fixe sous le titre, qui reste visible quand le corps défile */
+  sub?: ReactNode;
   wide?: boolean;
 }
 
 const stack: number[] = [];
 let nextId = 1;
 
-export function Modal({ title, onClose, children, footer, wide = false }: ModalProps) {
+export function Modal({ title, onClose, children, footer, sub, wide = false }: ModalProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -22,7 +24,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: ModalP
     stack.push(id);
     const previous = document.activeElement as HTMLElement | null;
     document.body.classList.add('no-scroll');
-    const first = boxRef.current?.querySelector<HTMLElement>('.modal-body input:not([type=hidden]):not([type=file]), .modal-body select, .modal-body textarea')
+    const first = boxRef.current?.querySelector<HTMLElement>(':is(.modal-sub, .modal-body) :is(input:not([type=hidden]):not([type=file]), select, textarea)')
       ?? boxRef.current?.querySelector<HTMLElement>('[data-close]');
     first?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && stack[stack.length - 1] === id) closeRef.current(); };
@@ -41,6 +43,7 @@ export function Modal({ title, onClose, children, footer, wide = false }: ModalP
           <h2 id="modal-title">{title}</h2>
           <button type="button" className="icon-btn" data-close onClick={onClose} aria-label="Fermer"><IconX /></button>
         </div>
+        {sub && <div className="modal-sub">{sub}</div>}
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
