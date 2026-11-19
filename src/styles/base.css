@@ -512,6 +512,7 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .podium-count small { color: var(--muted); font-size: 17px; font-weight: 700; }
 .lb-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .lb-row { display: grid; grid-template-columns: 2.2em minmax(0, 9em) 1fr auto; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; background: var(--surface); }
+.lb-row.no-count { grid-template-columns: 2.2em minmax(0, 1fr); }
 .lb-row[aria-current] { background: color-mix(in srgb, var(--accent) 18%, var(--surface)); font-weight: 700; }
 .lb-rank { color: var(--muted); font: 700 18px/1 var(--font-c); text-align: right; font-variant-numeric: tabular-nums; }
 .lb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

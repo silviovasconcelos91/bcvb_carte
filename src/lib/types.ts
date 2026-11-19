@@ -57,6 +57,13 @@ export interface LeaderRow {
   distinct_count: number;
 }
 
+// Classement aux boosters ouverts : le rang seul, le nombre n'est jamais montré
+export interface BoosterLeaderRow {
+  user_id: string;
+  username: string;
+  rank: number;
+}
+
 // Carte proposée par un membre, en attente d'examen par un administrateur
 export interface Proposal {
   id: number;

@@ -43,6 +43,11 @@ export function Dashboard() {
   const soon = activeCodes.filter(c => c.expires_at && Date.parse(c.expires_at) - Date.now() < 864e5);
   if (soon.length) checks.push(['info', `${plural(soon.length, 'code expire', 'codes expirent')} dans moins de 24 h : ${soon.map(c => c.code).join(', ')}.`, 'codes']);
 
+  // Séries des boosters, plus celles qui en ont reçu par le passé (retirées depuis, ou via un code)
+  const bySet = d.sets
+    .map(s => ({ s, n: d.boostersBySet.find(x => x.set_id === s.id) }))
+    .filter(({ s, n }) => s.in_boosters || n);
+
   return (
     <>
       <h2 className="h2">Tableau de bord</h2>
@@ -55,6 +60,18 @@ export function Dashboard() {
           {checks.length ? (
             <ul className="checks">{checks.map(([k, t, tab]) => <li key={t} className={`check-${k}`}><span>{t}</span><button className="btn small" onClick={() => setTab(tab)}>Voir</button></li>)}</ul>
           ) : <p className="muted">Rien à signaler.</p>}
+          <h3 className="h3">Boosters ouverts par série</h3>
+          {bySet.length ? (
+            <div className="table-wrap"><table className="tbl">
+              <thead><tr><th>Série</th><th className="num">Boosters</th><th className="num">7 derniers jours</th></tr></thead>
+              <tbody>
+                {bySet.map(({ s, n }) => (
+                  <tr key={s.id}><td>{s.name}{!s.in_boosters && <span className="muted"> (hors boosters)</span>}</td><td className="num">{n?.boosters ?? 0}</td><td className="num">{n?.week ?? 0}</td></tr>
+                ))}
+              </tbody>
+            </table></div>
+          ) : <p className="muted">Aucune série pour l'instant.</p>}
+          <p className="hint">Un booster « Toutes les séries » compte dans chaque série dont il contenait des cartes.</p>
         </section>
         <section>
           <h3 className="h3">Derniers boosters ouverts</h3>

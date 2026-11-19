@@ -1,5 +1,5 @@
 import { CONFIG, DEMO } from '../config';
-import type { BoosterCode, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Photo, Profile, Proposal, ProposalInput, Rarity, Settings, Subtitle, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
+import type { BoosterCode, BoosterLeaderRow, Card, CardRef, CardSet, CatalogRow, DrawnCard, LeaderRow, Photo, Profile, Proposal, ProposalInput, Rarity, Settings, Subtitle, Trade, TradeItem, TradeSide, TradeStatus, UserCard } from '../lib/types';
 import { fetchAll, getSupabase, must, signOut, signedUrls, watchSession } from '../lib/supabase';
 import { changePassword, currentLoginId, signIn, signUp } from '../lib/auth';
 import { DEMO_CARDS, DEMO_MEMBERS, DEMO_MESSAGES, DEMO_RARITIES, DEMO_SETS, DEMO_SUBTITLES, clone, demoDraw, demoGodPackPossible, readStore, writeStore } from '../lib/demoData';
@@ -49,6 +49,8 @@ export interface GameApi {
   cancelTrade(id: number): Promise<void>;
   // Classement d'une série active : membres ayant au moins une carte, du meilleur au moins bon
   leaderboard(setId: number): Promise<LeaderRow[]>;
+  // Classement d'une série active aux boosters ouverts, du premier au dernier (rang seul)
+  boosterLeaderboard(setId: number): Promise<BoosterLeaderRow[]>;
   imageUrls(paths: string[]): Promise<Record<string, string>>;
   // Propositions de cartes du membre connecté, les plus anciennes d'abord
   myProposals(): Promise<Proposal[]>;
@@ -118,6 +120,7 @@ function createSupabaseGameApi(): GameApi {
     counterTrade: (id, offer, request, message) => rpc<number>('counter_trade', { p_trade_id: id, p_offer: offer, p_request: request, p_message: message || null }),
     cancelTrade: async id => { await rpc('cancel_trade', { p_trade_id: id }); },
     leaderboard: setId => rpc<LeaderRow[]>('leaderboard', { p_set_id: setId }),
+    boosterLeaderboard: setId => rpc<BoosterLeaderRow[]>('booster_leaderboard', { p_set_id: setId }),
     imageUrls: signedUrls,
     myProposals: async () => must<Proposal[]>(await sb.from('card_proposals').select('*').order('created_at')),
     async subtitles() {
@@ -387,6 +390,16 @@ function createDemoGameApi(): GameApi {
         .map(p => ({ user_id: p.id, username: p.username, distinct_count: Object.keys(inv(p.id)).filter(cid => inSet.has(+cid)).length }))
         .filter(r => r.distinct_count > 0)
         .sort((a, b) => b.distinct_count - a.distinct_count || a.username.localeCompare(b.username));
+    },
+    // Comme booster_leaderboard() : rang au nombre de boosters de la série, ex-aequo au même rang
+    async boosterLeaderboard(setId) {
+      if (!db.sets.some(s => s.id === setId && s.in_boosters)) return [];
+      const rows = db.profiles
+        .filter(p => p.status === 'active')
+        .map(p => ({ user_id: p.id, username: p.username, n: db.openedBySet[p.id]?.[setId]?.boosters ?? 0 }))
+        .filter(r => r.n > 0)
+        .sort((a, b) => b.n - a.n || a.username.localeCompare(b.username));
+      return rows.map(({ n, ...r }) => ({ ...r, rank: rows.findIndex(x => x.n === n) + 1 }));
     },
     async imageUrls() { return {}; },
     async myProposals() { return clone(db.proposals.filter(p => p.user_id === db.current)); },

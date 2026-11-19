@@ -20,6 +20,27 @@ export interface AdminData {
   trades: Trade[]; // tous les échanges du club, du plus récent au plus ancien
   signupCode: string | null; // code du club : un compte créé avec lui est actif tout de suite
   stats: { nOpen: number; nOpenWeek: number; nAccepted: number; nPending: number };
+  boostersBySet: SetOpenings[]; // séries ayant au moins un booster ouvert
+}
+
+// Boosters ouverts par série, d'après la série de leurs cartes : un booster de plusieurs séries compte dans chacune
+export interface SetOpenings { set_id: number; boosters: number; week: number }
+
+function openingsBySet(openings: Pick<Opening, 'card_ids' | 'opened_at'>[], cards: Pick<Card, 'id' | 'set_id'>[]): SetOpenings[] {
+  const setOf = new Map(cards.map(c => [c.id, c.set_id]));
+  const week = Date.now() - 7 * 864e5;
+  const out = new Map<number, SetOpenings>();
+  for (const o of openings) {
+    const recent = Date.parse(o.opened_at) > week;
+    for (const sid of new Set(o.card_ids.map(id => setOf.get(id)))) {
+      if (sid == null) continue;
+      const s = out.get(sid) ?? { set_id: sid, boosters: 0, week: 0 };
+      s.boosters++;
+      if (recent) s.week++;
+      out.set(sid, s);
+    }
+  }
+  return [...out.values()].sort((a, b) => a.set_id - b.set_id);
 }
 
 export type CardInput = Omit<Card, 'id' | 'masked'> & { id?: number };
@@ -108,7 +129,7 @@ function createSupabaseAdminApi(): AdminApi {
       const week = new Date(Date.now() - 7 * 864e5).toISOString();
       const openings = () => sb.from('booster_openings').select('id', { count: 'exact', head: true });
       const tradeCount = () => sb.from('trades').select('id', { count: 'exact', head: true });
-      const [settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins, recent, trades, signup, nOpen, nOpenWeek, nAccepted, nPending] = await Promise.all([
+      const [settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins, recent, trades, signup, nOpen, nOpenWeek, nAccepted, nPending, allOpenings] = await Promise.all([
         sb.from('game_settings').select('*').single().then(r => ok<Settings>(r)),
         sb.from('rarities').select('*').order('id').then(r => ok<Rarity[]>(r)),
         sb.from('card_sets').select('*').order('id').then(r => ok<CardSet[]>(r)),
@@ -128,8 +149,12 @@ function createSupabaseAdminApi(): AdminApi {
         openings().gte('opened_at', week).then(count),
         tradeCount().eq('status', 'accepted').then(count),
         tradeCount().eq('status', 'pending').then(count),
+        fetchAll<Pick<Opening, 'card_ids' | 'opened_at'>>(() => sb.from('booster_openings').select('card_ids, opened_at').order('id')),
       ]);
-      return { settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, trades, signupCode: signup.code, stats: { nOpen, nOpenWeek, nAccepted, nPending } };
+      return {
+        settings, rarities, sets, subtitles, proposals, cards, profiles, userCards, codes, admins: admins.map(a => a.user_id), recent, trades, signupCode: signup.code,
+        stats: { nOpen, nOpenWeek, nAccepted, nPending }, boostersBySet: openingsBySet(allOpenings, cards),
+      };
     },
     // La photo et sa vignette éventuelles sont envoyées d'abord, les anciennes supprimées une fois la carte enregistrée
     async saveCard(card, photo, old) {
@@ -320,6 +345,7 @@ function createDemoAdminApi(): AdminApi {
         trades: [...db.trades].sort((a, b) => b.created_at.localeCompare(a.created_at)),
         signupCode: db.signupCode,
         stats: { nOpen: db.openings.length, nOpenWeek: db.openings.filter(o => Date.parse(o.opened_at) > week).length, nAccepted: db.accepted, nPending: db.pending },
+        boostersBySet: openingsBySet(db.openings, db.cards),
       });
     },
     async saveCard(card, photo, old) {
