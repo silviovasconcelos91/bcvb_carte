@@ -19,6 +19,8 @@ export interface GameData {
 }
 
 export interface BoosterStats { boosters: number; cards: number }
+// Carte secrète qu'un autre membre a en double et que je n'ai pas : seul son identifiant est connu
+export interface SecretDouble { user_id: string; card_id: number; quantity: number }
 
 export interface GameApi {
   mode: 'supabase' | 'demo';
@@ -37,6 +39,8 @@ export interface GameApi {
   openBooster(code: string | null, setId?: number | null): Promise<DrawnCard[]>;
   // Boosters ouverts par le membre (gratuits et codes) et cartes qu'ils lui ont rapportées
   boosterStats(uid: string): Promise<BoosterStats>;
+  // Cartes secrètes en double chez les autres, que je n'ai pas (vide si je n'ai aucune carte secrète)
+  secretDoubles(): Promise<SecretDouble[]>;
   createTrade(to: string, offer: CardRef[], request: CardRef[], message: string | null): Promise<number>;
   acceptTrade(id: number): Promise<TradeStatus>;
   declineTrade(id: number): Promise<void>;
@@ -110,6 +114,7 @@ function createSupabaseGameApi(): GameApi {
       const rows = await fetchAll<{ card_ids: number[] }>(() => sb.from('booster_openings').select('card_ids').eq('user_id', uid).order('id'));
       return { boosters: rows.length, cards: rows.reduce((n, r) => n + r.card_ids.length, 0) };
     },
+    secretDoubles: () => rpc<SecretDouble[]>('secret_doubles', {}),
     createTrade: (to, offer, request, message) => rpc<number>('create_trade', { p_recipient: to, p_offer: offer, p_request: request, p_message: message || null }),
     acceptTrade: id => rpc<TradeStatus>('accept_trade', { p_trade_id: id }),
     declineTrade: async id => { await rpc('decline_trade', { p_trade_id: id }); },
@@ -308,6 +313,19 @@ function createDemoGameApi(): GameApi {
       return clone(result);
     },
     async boosterStats(uid) { return clone(db.opened[uid] ?? { boosters: 0, cards: 0 }); },
+    async secretDoubles() {
+      // Comme secret_doubles() : réservé à qui a au moins une carte secrète
+      const me = db.current ?? '';
+      const mine = db.owned[me] ?? {};
+      const secret = new Set(db.cards.filter(c => c.is_released && db.rarities.some(r => r.id === c.rarity_id && r.is_secret)).map(c => c.id));
+      if (!Object.keys(mine).some(cid => secret.has(+cid))) return [];
+      const out: SecretDouble[] = [];
+      for (const p of db.profiles) {
+        if (p.id === me || p.status === 'pending') continue;
+        for (const [cid, q] of Object.entries(db.owned[p.id] ?? {})) if (q > 1 && secret.has(+cid) && !mine[+cid]) out.push({ user_id: p.id, card_id: +cid, quantity: q });
+      }
+      return out;
+    },
     async createTrade(to, offer, request, message) {
       const me = db.current ?? fail('Connexion requise');
       if (!to || to === me || !profile(to)) fail('Destinataire invalide');

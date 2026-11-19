@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { partialCard } from '../api/game';
 import type { Card, CardRef } from '../lib/types';
 import { errMsg, listFr, plural, stripAccents, sumValues } from '../lib/format';
 import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
@@ -164,13 +165,15 @@ export function Composer({ opts, onClose }: { opts: ComposerOpts; onClose: () =>
     const sel = kind === 'give' ? give : want;
     if (!sel.size) return <span className="recap-none">Rien</span>;
     return [...sel].map(([cid, n]) => {
-      const c = d.cardById.get(cid);
-      if (!c) return null;
+      // Absente du catalogue : carte secrète demandée sans la connaître (voir la fiche d'une carte secrète)
+      const known = d.cardById.get(cid);
+      const c = known ?? partialCard({ id: cid, masked: true });
+      const name = known ? cardName(c) : 'Carte mystère';
       const last = kind === 'give' && n >= (mine.get(cid) ?? 0);
       return (
-        <button key={cid} className={`rc-chip ${rClass(L, c)}${last ? ' warn' : ''}`} onClick={() => toggle(kind, cid)} aria-label={`Retirer ${cardName(c)} de l'échange`}>
+        <button key={cid} className={`rc-chip ${rClass(L, c)}${last ? ' warn' : ''}`} onClick={() => toggle(kind, cid)} aria-label={`Retirer ${name} de l'échange`}>
           <span className="chip-art"><MiniArt card={c} /></span>
-          <span>{last && '⚠ '}{cardName(c)}{n > 1 ? ` ×${n}` : ''}</span>
+          <span>{last && '⚠ '}{name}{n > 1 ? ` ×${n}` : ''}</span>
         </button>
       );
     });

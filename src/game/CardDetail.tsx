@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type TouchEvent } from 'react';
 import { pad2, plural } from '../lib/format';
-import { cardName, rClass, rarText, useLookup } from '../lib/lookup';
+import type { SecretDouble } from '../api/game';
+import { cardName, isSecret, rClass, rarText, useLookup } from '../lib/lookup';
 import { Avatar, CardBack, CardView, IconChevron, medalOf } from '../components/visuals';
 import { Modal } from '../components/Modal';
 import { qtyOf, useGame } from './context';
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
-  const { d, uid, openComposer } = useGame();
+  const { api, d, uid, openComposer } = useGame();
   const L = useLookup();
   const idx = onNavigate ? list.indexOf(id) : -1;
   const prevId = idx > 0 ? list[idx - 1] : null;
@@ -42,13 +43,33 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
     if (dx < 0) go(nextId, 'next'); else go(prevId, 'prev');
   };
 
-  const c = d.cardById.get(id);
+  // Carte secrète possédée : cartes secrètes que les autres ont en double et que je n'ai pas
+  const owned = d.cardById.get(id);
+  const secretOwned = !!owned && isSecret(L, owned) && qtyOf(d, uid, id) > 0;
+  const [doubles, setDoubles] = useState<SecretDouble[] | null>(null);
+  useEffect(() => {
+    if (!secretOwned) return;
+    let alive = true;
+    api.secretDoubles().then(r => { if (alive) setDoubles(r); }, () => { if (alive) setDoubles([]); });
+    return () => { alive = false; };
+  }, [api, secretOwned]);
+
+  const c = owned;
   if (!c) return null;
   const q = qtyOf(d, uid, id);
   const set = L.setById.get(c.set_id);
   const owners = d.profiles.filter(p => p.id !== uid).map(p => [p, qtyOf(d, p.id, id)] as const).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   // Membres à qui je peux la proposer : seulement si je l'ai (comptes en attente exclus, ils n'ont pas accès au jeu)
   const missing = q ? d.profiles.filter(p => p.id !== uid && p.status !== 'pending' && !qtyOf(d, p.id, id)) : [];
+  // Par membre, ses cartes secrètes en double ; on lui en demande une au hasard, elle reste mystère jusqu'à l'échange
+  const bySecret = new Map<string, number[]>();
+  if (secretOwned) for (const x of doubles ?? []) bySecret.set(x.user_id, [...(bySecret.get(x.user_id) ?? []), x.card_id]);
+  const secretHolders = d.profiles.filter(p => bySecret.has(p.id));
+  const askSecret = (to: string) => {
+    const ids = bySecret.get(to)!;
+    onClose();
+    openComposer({ to, give: [[c.id, 1]], want: [[ids[Math.floor(Math.random() * ids.length)], 1]] });
+  };
   const own = q
     ? (q > 1 ? `Tu en as ${q}, dont ${plural(q - 1, 'double', 'doubles')} à échanger.` : 'Tu en as 1.')
     : "Tu ne l'as pas : son nom et son illustration apparaîtront quand tu l'auras.";
@@ -96,6 +117,22 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
                 ))}
               </ul>
             ) : <p className="muted">Tous les membres l'ont déjà.</p>}
+          </>}
+          {secretOwned && <>
+            <h3 className="h3">Qui a une carte secrète en double&nbsp;?</h3>
+            <p className="muted">Des cartes secrètes que tu n'as pas encore. Tu ne sauras laquelle qu'une fois l'échange accepté.</p>
+            {!doubles ? <p className="muted">Chargement…</p> : secretHolders.length ? (
+              <ul className="owners">
+                {secretHolders.map(p => (
+                  <li key={p.id}>
+                    <Avatar name={p.username} small />
+                    <span className="owner-name">{p.username}</span>
+                    <span className="owner-q">{plural(bySecret.get(p.id)!.length, 'carte mystère', 'cartes mystère')}</span>
+                    <button className="btn small" onClick={() => askSecret(p.id)}>Lui proposer</button>
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="muted">Personne n'a de carte secrète en double qui te manque.</p>}
           </>}
         </div>
       </div>
