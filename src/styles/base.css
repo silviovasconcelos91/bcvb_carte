@@ -162,6 +162,8 @@ code { padding: 1px 6px; border-radius: 5px; background: var(--surface-2); color
 .stage-in { display: grid; justify-items: center; gap: 14px; text-align: center; }
 .pack-spot { position: relative; width: min(210px, 50vw); }
 .cooldown { min-height: 1.5em; margin: 0; color: rgba(255, 255, 255, .88); font-weight: 500; }
+.booster-stats { margin: 0; color: rgba(255, 255, 255, .72); font-size: 15px; }
+.booster-stats strong { color: #fff; font-weight: 700; }
 .code-form { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px; margin-top: 8px; }
 .code-form label { font-weight: 600; }
 .code-form .input { width: 200px; border-color: transparent; background: #fff; color: #13213C; font: 700 18px/1 var(--font-c); letter-spacing: .04em; text-transform: uppercase; }

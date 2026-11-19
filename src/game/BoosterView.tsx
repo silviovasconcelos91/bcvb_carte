@@ -3,6 +3,7 @@ import { errMsg, fmtDuration, freeBoosters, intervalMs, percent, plural } from '
 import { isSecret } from '../lib/lookup';
 import { Court, Pack } from '../components/visuals';
 import { useToast } from '../components/Toasts';
+import type { BoosterStats } from '../api/game';
 import { useGame, type GameIndex } from './context';
 
 // Séries qui tombent dans les boosters standards et ont au moins une carte publiée
@@ -26,7 +27,7 @@ const SET_KEY = 'cartes-booster-set';
 const readSet = () => { try { return Number(localStorage.getItem(SET_KEY)) || null; } catch { return null; } };
 
 export function BoosterView() {
-  const { api, d, refresh, showReveal, pendingCode, setPendingCode } = useGame();
+  const { api, d, uid, refresh, showReveal, pendingCode, setPendingCode } = useGame();
   const toast = useToast();
   const [busy, setBusy] = useState<'free' | 'code' | null>(null);
   const [code, setCode] = useState(pendingCode);
@@ -34,6 +35,10 @@ export function BoosterView() {
   const [, setTick] = useState(0); // re-rendu régulier pour le compte à rebours
   useEffect(() => { const t = setInterval(() => setTick(n => n + 1), 30000); return () => clearInterval(t); }, []);
   useEffect(() => { setCode(pendingCode); }, [pendingCode]);
+  // Compteur personnel, relu après chaque ouverture ; masqué tant qu'il n'est pas chargé ou en cas d'erreur
+  const [stats, setStats] = useState<BoosterStats | null>(null);
+  const loadStats = () => api.boosterStats(uid).then(setStats, () => setStats(null));
+  useEffect(() => { void loadStats(); }, [api, uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Le choix n'apparaît qu'avec plusieurs séries ; avec une seule, le booster reste celui de toutes les séries
   const sets = boosterSets(d);
@@ -68,6 +73,7 @@ export function BoosterView() {
       if (withCode) { setPendingCode(''); setCode(''); }
       await refresh();
       showReveal(cards);
+      void loadStats();
     } catch (e) {
       toast(errMsg(e), true);
     } finally {
@@ -127,6 +133,13 @@ export function BoosterView() {
           )}
           <button className="btn primary big" disabled={!available || busy !== null} onClick={() => void open(null)}>{openLabel}</button>
           <p className="cooldown" aria-live="polite">{status}</p>
+          {stats && (
+            <p className="booster-stats">
+              {stats.boosters
+                ? <>Tu as ouvert <strong>{plural(stats.boosters, 'booster', 'boosters')}</strong> et récupéré <strong>{plural(stats.cards, 'carte', 'cartes')}</strong>.</>
+                : "Tu n'as pas encore ouvert de booster."}
+            </p>
+          )}
           {pendingCode && <p className="cooldown">Code scanné : il ne reste plus qu'à l'utiliser.</p>}
           <form className="code-form" onSubmit={submit}>
             <label htmlFor="code-input">Tu as un code&nbsp;?</label>
