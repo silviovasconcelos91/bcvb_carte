@@ -70,6 +70,35 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
     onClose();
     openComposer({ to, give: [[c.id, 1]], want: [[ids[Math.floor(Math.random() * ids.length)], 1]] });
   };
+  const ownersBlock = <>
+    <h3 className="h3">Qui l'a&nbsp;?</h3>
+    {owners.length ? (
+      <ul className="owners">
+        {owners.map(([p, n]) => (
+          <li key={p.id}>
+            <Avatar name={p.username} small />
+            <span className="owner-name">{p.username}</span>
+            <span className="owner-q">{plural(n, 'exemplaire', 'exemplaires')}</span>
+            <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, want: [[c.id, 1]] }); }}>Lui demander</button>
+          </li>
+        ))}
+      </ul>
+    ) : <p className="muted">Aucun autre membre ne l'a pour l'instant.</p>}
+  </>;
+  const missingBlock = <>
+    <h3 className="h3">Qui ne l'a pas&nbsp;?</h3>
+    {missing.length ? (
+      <ul className="owners">
+        {missing.map(p => (
+          <li key={p.id}>
+            <Avatar name={p.username} small />
+            <span className="owner-name grow">{p.username}</span>
+            <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, give: [[c.id, 1]] }); }}>Lui proposer</button>
+          </li>
+        ))}
+      </ul>
+    ) : <p className="muted">Tous les membres l'ont déjà.</p>}
+  </>;
   const own = q
     ? (q > 1 ? `Tu en as ${q}, dont ${plural(q - 1, 'double', 'doubles')} à échanger.` : 'Tu en as 1.')
     : "Tu ne l'as pas : son nom et son illustration apparaîtront quand tu l'auras.";
@@ -91,33 +120,8 @@ export function CardDetail({ id, list = [], onNavigate, onClose }: Props) {
           </p>
           {c.description && <p className="detail-desc">{c.description}</p>}
           <p className="detail-own">{own}{medal && ` ${medal.label} obtenue pour ${medal.min} exemplaires.`}</p>
-          <h3 className="h3">Qui l'a&nbsp;?</h3>
-          {owners.length ? (
-            <ul className="owners">
-              {owners.map(([p, n]) => (
-                <li key={p.id}>
-                  <Avatar name={p.username} small />
-                  <span className="owner-name">{p.username}</span>
-                  <span className="owner-q">{plural(n, 'exemplaire', 'exemplaires')}</span>
-                  <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, want: [[c.id, 1]] }); }}>Lui demander</button>
-                </li>
-              ))}
-            </ul>
-          ) : <p className="muted">Aucun autre membre ne l'a pour l'instant.</p>}
-          {q > 0 && <>
-            <h3 className="h3">Qui ne l'a pas&nbsp;?</h3>
-            {missing.length ? (
-              <ul className="owners">
-                {missing.map(p => (
-                  <li key={p.id}>
-                    <Avatar name={p.username} small />
-                    <span className="owner-name grow">{p.username}</span>
-                    <button className="btn small" onClick={() => { onClose(); openComposer({ to: p.id, give: [[c.id, 1]] }); }}>Lui proposer</button>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="muted">Tous les membres l'ont déjà.</p>}
-          </>}
+          {/* Avec des doubles, on cherche d'abord à qui les proposer */}
+          {q > 1 ? <>{missingBlock}{ownersBlock}</> : <>{ownersBlock}{q > 0 && missingBlock}</>}
           {secretOwned && <>
             <h3 className="h3">Qui a une carte secrète en double&nbsp;?</h3>
             <p className="muted">Des cartes secrètes que tu n'as pas encore. Tu ne sauras laquelle qu'une fois l'échange accepté.</p>
